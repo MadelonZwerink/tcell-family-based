@@ -1,10 +1,10 @@
-# My Project
+# T cell family based
 
-This project template is a demonstration for the RepCo workshop.
+This project shows the sizes of different T cell families.
 
 ## Usage
 
-Click "Use this template" at the top of this page to create a new repository with the same folder structure.
+Download the folder and run the run_model file.
 
 ## Project Structure
 
