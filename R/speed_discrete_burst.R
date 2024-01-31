@@ -1,12 +1,12 @@
 speed_version <- "31-01-2024"
 
-library(tidyverse)
-library(magrittr)
-library(ggplot2)
-library(purrr)
-library(data.table)
-library(cowplot)
-library(tibble)
+library(tidyverse)  # CRAN v2.0.0
+library(magrittr)   # CRAN v2.0.3
+library(ggplot2)    # CRAN v3.4.4
+library(purrr)      # CRAN v1.0.2
+library(data.table) # CRAN v1.15.0
+library(cowplot)    # CRAN v1.1.3
+library(tibble)     # CRAN v3.2.1
 
 source("./R/data_load.R")
 #-------------------------------------------------------------------------------
@@ -380,7 +380,7 @@ wide_to_long <- function(solve_table) {
 #-------------------------------------------------------------------------------
 
 generate_max_fam_plot <- function(prim_parameters, sec_parameters, ter_parameters, type = c("time", "max"), time = NULL, remove_zeroes = FALSE, relative = FALSE, show_title = TRUE, show_legend = TRUE) {
-  library(cowplot)
+  library(cowplot)  # CRAN v1.1.3 # CRAN v1.1.3
   
   nr_of_families <- max(prim_parameters$fam_nr)
   max_prim <- rep(0, nr_of_families)
