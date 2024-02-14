@@ -9,17 +9,19 @@ library(cowplot)    # CRAN v1.1.3
 library(tibble)     # CRAN v3.2.1
 
 source("./R/data_load.R")
+
+#-------------------------------------------------------------------------------
+
+
+
 #-------------------------------------------------------------------------------
 
 pick_parameters <- function(
     bp_rule = "runif(1, min = 0.5, max = 3)",
-    d_p,
-    sd_dp = 0,
-    r_q = NULL,
-    b_q = 0,
-    sd_bq = 0,
-    d_q = 0,
-    sd_dq = 0,
+    dp_rule,
+    rq_rule = NULL,
+    bq_rule = "0",
+    dq_rule = "0",
     t_start_dist,
     t_run_rule,
     nr_of_families = NULL,
@@ -27,41 +29,29 @@ pick_parameters <- function(
     correction_t_burst = NULL,
     response_nr = 1,
     prev_parameters = NULL,
-    primary_parameters = NULL,
-    secondary_parameters = NULL,
     quality_dist = NULL,
-    Q1 = NULL,
-    Q2 = NULL,
-    Q3 = NULL,
-    Q4 = NULL,
     ASD = FALSE) {
-  # for (name in c("mean_t_start", "sd_t_start", "mean_t_run", "sd_t_run", "mean_b", "sd_b", "nr_of_families")){
-  #  overview_params[name, response_nr] <<- eval(parse(text = name))
-  # }
-  max_run_time <- 8
-  parameters <- data.frame(
-    cell_type = factor(),
-    div_counter = integer(),
-    t_start = numeric(),
-    quality = numeric(),
-    fam_nr = integer(),
-    fam_nr_2 = integer(),
-    fam_nr_3 = integer(),
-    nr_burst_divs = integer(),
-    t_burst = numeric(),
-    t_run = numeric(),
-    t_correct = numeric(),
-    bp = numeric(),
-    dp = numeric(),
-    bq = numeric(),
-    dq = numeric()
-  )
+  
+  parameters <- data.frame(cell_type = factor(),
+                           div_counter = integer(),
+                           t_start = numeric(),
+                           quality = numeric(),
+                           fam_nr = integer(),
+                           fam_nr_2 = integer(),
+                           fam_nr_3 = integer(),
+                           nr_burst_divs = integer(),
+                           t_burst = numeric(),
+                           t_run = numeric(),
+                           t_correct = numeric(),
+                           bp = numeric(),
+                           dp = numeric(),
+                           bq = numeric(),
+                           dq = numeric())
   
   if (is.null(prev_parameters) == FALSE) {
-    prev_Q <<- prev_parameters[prev_parameters$cell_type == "Q", ]
-    nr_of_families <- nrow(prev_Q)
-    families <- nr_of_families
-    prev_divs <- prev_Q$div_counter
+    prev_q <- prev_parameters[prev_parameters$cell_type == "Q", ]
+    nr_of_families <- nrow(prev_q)
+    prev_divs <- prev_q$div_counter
   } else {
     prev_divs <- rep(0, nr_of_families)
   }
@@ -74,15 +64,13 @@ pick_parameters <- function(
     quality <- rep(NA, nr_of_families)
   }
   
-  ifelse(!is.null(Q1) & !is.null(quality_dist), 
-         Q_1 <- eval(parse(text = Q1)), 
-         Q_1 <- rep(1, nr_of_families)) # rq: max fraction (min is 0)
-  
   nr_burst_divs <- eval(parse(text = nr_burst_divs))
+  div_counter <- nr_burst_divs + prev_divs
   t_burst <- rep(0.2, nr_of_families)
   t_start_expr <- substitute(eval(parse(text = t_start_dist)))
   t_start_val <- eval(t_start_expr)
   t_start <- round(t_start_val, digits = 2)
+  max_run_time <- 8
   
   for (i in 1:nr_of_families) {
     # Make sure the families have the correct family number
@@ -92,41 +80,36 @@ pick_parameters <- function(
       fam_nr_3 <- 0
     }
     if (response_nr == 2) {
-      fam_nr <- prev_Q$fam_nr[i]
+      fam_nr <- prev_q$fam_nr[i]
       fam_nr_2 <- i
       fam_nr_3 <- 0
     }
     if (response_nr == 3) {
-      fam_nr <- prev_Q$fam_nr[i]
-      fam_nr_2 <- prev_Q$fam_nr_2[i]
+      fam_nr <- prev_q$fam_nr[i]
+      fam_nr_2 <- prev_q$fam_nr_2[i]
       fam_nr_3 <- i
     }
     
-    div_counter <- nr_burst_divs[i] + prev_divs[i]
-    
-    if (!is.null(quality_dist) & !is.null(Q4)) {
-      t_start[i] <- eval(parse(text = Q4))
-    }
-    
-    frac_rq <- ifelse(is.null(r_q), runif(1, min = 0, max = Q_1[i]), eval(parse(text = r_q)))
-    q_cells <- ifelse(ASD == F, min(max(ceiling(frac_rq * 2^nr_burst_divs[i]), 0), 2^nr_burst_divs[i]), 1)
+    frac_rq <- eval(parse(text = rq_rule))
+    q_cells <- ifelse(ASD == FALSE,
+                      min(
+                        max(ceiling(frac_rq * 2^nr_burst_divs[i]), 0),
+                        2^nr_burst_divs[i]),
+                      1)
     p_cells <- (2^nr_burst_divs[i]) - q_cells
     
     if (p_cells != 0) {
       for (cell in 1:p_cells) {
-        # rnorm(1, mean = ifelse(quality_parameter == T, Q_3[i], mean_t_run), sd = sd_t_run)
-        
         # First define the expression and then evaluate the expression
-        # If tbis is not included, the expression is only evaluated once, leading to the same t_run for all (sub)families
-        
+        # If this is not included, the expression is only evaluated once,
+        # leading to the same t_run for all (sub)families
         t_run_expr <- substitute(eval(parse(text = t_run_rule)))
         t_run_val <- eval(t_run_expr)
         t_run <- round(t_run_val, digits = 2)
-        bp <- round(eval(parse(text = bp_rule)), digits = 2)
         
         # this is to make sure all proliferation stops at t=7
         if (t_start[i] + t_run >= max_run_time) {
-          t_correct <- round((-max_run_time + t_start[i] + t_run), digits = 2)
+          t_correct <- round((t_start[i] + t_run - max_run_time), digits = 2)
         } else {
           t_correct <- 0
         }
@@ -140,23 +123,12 @@ pick_parameters <- function(
           t_start[i] <- 2.5
         }
         
-        if (!is.null(quality_dist)) {
-          if (!is.null(Q2)) {
-            bp <- round(eval(parse(text = Q2)), digits = 2)
-          }
-          if (!is.null(Q3)) {
-            t_run <- round(eval(parse(text = Q3)), digits = 2)
-          }
-        }
-        # bp <- round(rnorm(1, mean = b_p, sd = sd_bp), digits = 2)
-        dp <- round(rnorm(1, mean = d_p, sd = sd_dp), digits = 2)
-        bq <- round(rnorm(1, mean = eval(b_q), sd = sd_bq), digits = 2)
-        dq <- round(rnorm(1, mean = eval(d_q), sd = sd_dq), digits = 2)
-        
+        bp <- round(eval(parse(text = bp_rule)), digits = 2)
+        dp <- round(eval(parse(text = dp_rule)), digits = 2)
         
         parameters %<>% add_row(
           cell_type = "P",
-          div_counter = div_counter,
+          div_counter = div_counter[i],
           t_start = t_start[i],
           quality = quality[i],
           fam_nr = fam_nr,
@@ -168,8 +140,8 @@ pick_parameters <- function(
           t_correct = t_correct,
           bp = bp,
           dp = dp,
-          bq = bq,
-          dq = dq
+          bq = 0,
+          dq = 0
         )
       }
     }
@@ -190,14 +162,12 @@ pick_parameters <- function(
           t_start[i] <- 6.5
         }
         
-        bp <- 0
-        dp <- 0
-        bq <- round(rnorm(1, mean = eval(b_q), sd = sd_bq), digits = 2)
-        dq <- round(rnorm(1, mean = eval(d_q), sd = sd_dq), digits = 2)
+        bq <- round(eval(parse(text = bq_rule)), digits = 2)
+        dq <- round(eval(parse(text = dq_rule)), digits = 2)
         
         parameters %<>% add_row(
           cell_type = "Q",
-          div_counter = div_counter,
+          div_counter = div_counter[i],
           t_start = t_start[i],
           quality = quality[i],
           fam_nr = fam_nr,
@@ -207,8 +177,8 @@ pick_parameters <- function(
           t_burst = t_burst[i],
           t_run = 0,
           t_correct = t_correct,
-          bp = bp,
-          dp = dp,
+          bp = 0,
+          dp = 0,
           bq = bq,
           dq = dq
         )
@@ -218,15 +188,6 @@ pick_parameters <- function(
   return(parameters)
 }
 
-#-------------------------------------------------------------------------------
-
-# this is to make sure all proliferation stops at t=10
-# if (t_start[i] + t_run >= 8){
-# t_correct <- round((-8 + t_start[i] + t_run), digits = 2)
-# } else { t_correct <- 0 }
-# if (t_start[i] < 0){
-# t_start[i] = 0.01
-# }
 #-------------------------------------------------------------------------------
 
 run_model <- function(parameters,
