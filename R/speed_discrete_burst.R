@@ -588,7 +588,7 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
   
   plot_distribution <- ggplot(data = df_famsizes, aes(logfamsizes)) +
     geom_histogram(binwidth = binwidth) +
-    geom_point(data = expected_famsizes, aes(x = Amount, y = Freq), color = "red", size = 2) +
+    geom_point(data = expected_famsizes, aes(x = Amount, y = Freq), color = "black", size = 2) +
     annotate("text",
              x = Inf, y = Inf, hjust = 1, vjust = 1,
              label = paste(
@@ -598,7 +598,7 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
              )) +
     labs(title = "Distribution of family sizes",
          subtitle = paste("Nr. of families:", nrow(df_famsizes) - 1, "\nTime: day", timepoint),
-         x = "Family size",
+         x = "Family size (2log)",
          y = "Frequency") +
     theme(plot.margin = margin(t = 1, r = 1, unit = "cm"))
   
@@ -629,6 +629,17 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
   
   return(list(plot_distribution, cum_plot, df_famsizes[2:nrow(df_famsizes), ], expected_famsizes_day5, expected_famsizes_day6, expected_famsizes_day7, expected_famsizes_day8))
 }
+
+#-------------------------------------------------------------------------------
+
+plot_grid_famsize_dist <- function(parameters){
+  output <- list()
+  for(timepoint in c(5, 6, 7, 8)){
+    plots <- plot_famsize_dist(prim_parameters, timepoint = timepoint, method = "time", show_title = F)
+    output[timepoint-4] <- plots[1]
+  }
+  return(plot_grid(plotlist = output, labels = c("A - day 5", "B - day 6", "C - day 7", "D - day 8")))
+} 
 
 # _______________________________________________________________________________
 # This function plots the size of the family as a function of the number of Q cells that are formed
