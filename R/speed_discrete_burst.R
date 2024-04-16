@@ -66,7 +66,7 @@ pick_parameters <- function(
 
   nr_burst_divs <- eval(parse(text = nr_burst_divs))
   div_counter <- nr_burst_divs + prev_divs
-  t_burst <- rep(0.2, nr_of_families)
+  t_burst <- rep(0.15, nr_of_families)
   t_start_expr <- substitute(eval(parse(text = t_start_dist)))
   t_start_val <- eval(t_start_expr)
   t_start <- round(t_start_val, digits = 2)
@@ -116,12 +116,12 @@ pick_parameters <- function(
         if (t_start[i] < 0) {
           t_start[i] <- 0.01
         }
-        if (t_start[i] > 6.5) {
-          t_start[i] <- 6.5
-        }
-        if (t_start[i] < 2) {
-          t_start[i] <- 2.5
-        }
+       # if (t_start[i] > 6.5) {
+      #    t_start[i] <- 6.5
+       # }
+        #if (t_start[i] < 2) {
+         # t_start[i] <- 2
+        #}
 
         bp <- round(eval(parse(text = bp_rule)), digits = 2)
         dp <- round(eval(parse(text = dp_rule)), digits = 2)
@@ -464,8 +464,8 @@ generate_max_fam_plot <- function(prim_parameters,
              label = paste(
                "r =", round(cor_sec_ter$estimate, digits = 2),
                "\nP =", format(cor_sec_ter$p.value, scientific = TRUE, digits = 2),
-               "\nTotal primary:", format(sum(max_sec), scientific = TRUE, digits = 2),
-               "\nTotal secondary:", format(sum(max_ter), scientific = TRUE, digits = 2)
+               "\nTotal secondary:", format(sum(max_sec), scientific = TRUE, digits = 2),
+               "\nTotal tertiary:", format(sum(max_ter), scientific = TRUE, digits = 2)
              )
     ) +
     theme(legend.position = "none")
@@ -574,17 +574,21 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
       famsizes[parameters$fam_nr[i]] <- famsizes[parameters$fam_nr[i]] + after_contraction
     }
   }
-  mean_val <- mean(famsizes)
+  mean_val <- mean(famsizes[famsizes > 1])
   ci_lower <- mean_val - 1.96 * sd(famsizes) / sqrt(length(famsizes))
   ci_upper <- mean_val + 1.96 * sd(famsizes) / sqrt(length(famsizes))
+  df_famsizes <- data.frame(fam_nr = seq(0, length(famsizes)), famsizes = c(0, famsizes), logfamsizes = c(0, log2(famsizes)))
+  df_famsizes <- df_famsizes[order(df_famsizes$famsizes, decreasing = TRUE), ]
+  df_famsizes$nr <- seq(0, length(famsizes))
   famsizes <- sort(famsizes, decreasing = TRUE)
-  df_famsizes <- data.frame(nr = seq(0, length(famsizes)), famsizes = c(0, famsizes), logfamsizes = c(0, log2(famsizes)))
   expected_famsizes_day5 <- data.frame(Amount = day5$Number_2log, Freq = day5$Freq * (nrow(df_famsizes) - 1))
   expected_famsizes_day6 <- data.frame(Amount = day6$Number_2log, Freq = day6$Freq * (nrow(df_famsizes) - 1))
   expected_famsizes_day7 <- data.frame(Amount = day7$Number_2log, Freq = day7$Freq * (nrow(df_famsizes) - 1))
   expected_famsizes_day8 <- data.frame(Amount = day8$Number_2log, Freq = day8$Freq * (nrow(df_famsizes) - 1))
   
-  expected_famsizes <- get(paste0("expected_famsizes_day", timepoint))
+  if(timepoint %in% c(5,6,7,8)){expected_famsizes <- get(paste0("expected_famsizes_day", timepoint))}
+    else{expected_famsizes <- data.frame(Amount = 0, Freq = 0)}
+  # To make sure the function doesnt break when the timepoint is not 5,6,7 or 8
   
   plot_distribution <- ggplot(data = df_famsizes, aes(logfamsizes)) +
     geom_histogram(binwidth = binwidth) +
@@ -592,9 +596,9 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
     annotate("text",
              x = Inf, y = Inf, hjust = 1, vjust = 1,
              label = paste(
-               "Mean:", round(mean_val, digits = 1),
-               "\n95% CI:", round(ci_lower, digits = 1), "-", round(ci_upper, digits = 1),
-               "\nMedian:", round(median(df_famsizes$famsizes), digits = 1)
+               "Mean:", round(mean(df_famsizes$famsizes[df_famsizes$famsizes > 1]), digits = 0),
+               "\n95% CI:", round(ci_lower, digits = 1), "-", round(ci_upper, digits = 0),
+               "\nMedian:", round(median(df_famsizes$famsizes[df_famsizes$famsizes > 1]), digits = 0)
              )) +
     labs(title = "Distribution of family sizes",
          subtitle = paste("Nr. of families:", nrow(df_famsizes) - 1, "\nTime: day", timepoint),
@@ -628,17 +632,25 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
   expected_famsizes_day8$Amount <- as.factor(expected_famsizes_day8$Amount)
   
   return(list(plot_distribution, cum_plot, df_famsizes[2:nrow(df_famsizes), ], expected_famsizes_day5, expected_famsizes_day6, expected_famsizes_day7, expected_famsizes_day8))
+  # df_famsizes is selected from row 2 because the first row contains (0,0) 
+  # for the cumplot
 }
 
 #-------------------------------------------------------------------------------
 
 plot_grid_famsize_dist <- function(parameters){
   output <- list()
+  stats <- data.frame(timepoint = integer(), mean = integer(), median = integer())
   for(timepoint in c(5, 6, 7, 8)){
-    plots <- plot_famsize_dist(prim_parameters, timepoint = timepoint, method = "time", show_title = F)
-    output[timepoint-4] <- plots[1]
+    plot <- plot_famsize_dist(parameters, timepoint = timepoint, method = "time", show_title = F)
+    output[timepoint-4] <- plot[1]
+    output_stats <- plot[[3]]
+    stat_mean <- round(mean(output_stats$famsizes[output_stats$famsizes > 1]), digits = 0)
+    stat_median <- round(median(output_stats$famsizes[output_stats$famsizes > 1]), digits = 0)
+    stats %<>% add_row(timepoint = timepoint, mean = stat_mean, median = stat_median)
   }
-  return(plot_grid(plotlist = output, labels = c("A - day 5", "B - day 6", "C - day 7", "D - day 8")))
+  plots <- plot_grid(plotlist = output, labels = c("A - day 5", "B - day 6", "C - day 7", "D - day 8"))
+  return(list(plots, stats))
 } 
 
 # _______________________________________________________________________________
