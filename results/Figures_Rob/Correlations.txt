@@ -1,0 +1,40 @@
+Mean and median family sizes per response (on day 7)
+       mean     median
+1  1998.509   142.4925
+2  7920.521  1424.6764
+3 25578.801 10976.1394
+
+Correlation family size primary - secondary (day 7, rho = 0.19)
+
+	Spearman's rank correlation rho
+
+data:  max_cells$cells_prim and max_cells$cells_sec
+S = 16952201, p-value = 2.766e-05
+alternative hypothesis: true rho is not equal to 0
+sample estimates:
+      rho 
+0.1862911 
+
+
+Correlation family size secondary - tertiary (day 7, rho = 0.62)
+
+	Spearman's rank correlation rho
+
+data:  max_cells$cells_sec and max_cells$cells_ter
+S = 7930396, p-value < 2.2e-16
+alternative hypothesis: true rho is not equal to 0
+sample estimates:
+      rho 
+0.6193395 
+
+
+Correlation number of Q cells (drop outs) and family size
+
+	Spearman's rank correlation rho
+
+data:  Q_famsize$log_famsize and Q_famsize$Q_cells
+S = 14707325, p-value = 1.981e-11
+alternative hypothesis: true rho is not equal to 0
+sample estimates:
+      rho 
+0.2940456 

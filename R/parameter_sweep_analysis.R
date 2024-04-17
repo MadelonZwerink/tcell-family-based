@@ -56,28 +56,3 @@ for(r in seq(top_results)){
 plots_famsize_dist_exsmall
 
 #-------------------------------------------------------------------------------
-
-prim_parameters_best <- list()
-families <- 1000
-fam_counter <- 0
-best_results_index <- c(1, 5, 8, 13)
-top_results <- length(best_results_index)
-
-for(r in seq(top_results)) {
-  p <- best_results_index[r]
-  prim_parameters_best[[r]] <- pick_parameters(bp_rule = parameter_sweep$bp_dist[p],
-                                          dp_rule = 0.3,
-                                          rq_rule = parameter_sweep$rq_dist[p],
-                                          nr_of_families = families,
-                                          response_nr = 1,
-                                          t_run_rule = parameter_sweep$t_run_dist[p],
-                                          t_start_dist = parameter_sweep$t_start_dist[p],
-                                          nr_burst_divs = parameter_sweep$b_div[p])
-}
-plots_famsize_dist_best <-  list()
-
-for(r in seq(top_results)){
-  plots_famsize_dist_best[[r]] <- plot_grid_famsize_dist(prim_parameters_best[[r]]) 
-}
-
-plots_famsize_dist_best
