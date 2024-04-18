@@ -7,6 +7,7 @@ library(purrr)      # CRAN v1.0.2
 library(data.table) # CRAN v1.15.0
 library(cowplot)    # CRAN v1.1.3
 library(tibble)     # CRAN v3.2.1
+library(ggthemes)
 
 source("./R/data_load.R")
 
@@ -452,24 +453,26 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
   df_famsizes <- df_famsizes[order(df_famsizes$famsize, decreasing = TRUE), ]
   df_famsizes$logfamsize <- log2(df_famsizes$famsize)
   df_famsizes$nr <- seq(nrow(df_famsizes))
+  
+  freq_famsizes <<- data.frame(table(round(df_famsizes$logfamsize)))
+  colnames(freq_famsizes) <- c("logfamsize", "freq")
+  freq_famsizes$freq <- freq_famsizes$freq/sum(freq_famsizes$freq)
+  while (nrow(freq_famsizes) < 16) {
+    freq_famsizes <- add_row(freq_famsizes, logfamsize = as.factor(nrow(freq_famsizes)+1), freq = 0)}
+  
   zeros_row <- c(0, 0, 0, 0) 
   # We would like to have this row as the first value, so that the cumplot 
   # starts at 0,0
   df_famsizes <- rbind(zeros_row, df_famsizes)
   
-  expected_famsizes_day5 <- data.frame(Amount = day5$Number_2log, Freq = day5$Freq * (nrow(df_famsizes) - 1))
-  expected_famsizes_day6 <- data.frame(Amount = day6$Number_2log, Freq = day6$Freq * (nrow(df_famsizes) - 1))
-  expected_famsizes_day7 <- data.frame(Amount = day7$Number_2log, Freq = day7$Freq * (nrow(df_famsizes) - 1))
-  expected_famsizes_day8 <- data.frame(Amount = day8$Number_2log, Freq = day8$Freq * (nrow(df_famsizes) - 1))
-  
   if(timepoint %in% c(5,6,7,8)){
-    expected_famsizes <- get(paste0("expected_famsizes_day", timepoint))}
-  else{expected_famsizes <- data.frame(Amount = 0, Freq = 0)}
+    expected_famsizes <- get(paste0("day", timepoint))}
+  else{expected_famsizes <- data.frame(Number_2log = 0, Frequency = 0)}
   # To make sure the function doesnt break when the timepoint is not 5,6,7 or 8
   
-  plot_distribution <- ggplot(data = df_famsizes, aes(logfamsize)) +
-    geom_histogram(binwidth = binwidth, color = "darkblue", fill = "lightblue") +
-    geom_point(data = expected_famsizes, aes(x = Amount, y = Freq), color = "darkorange", size = 2) +
+  plot_distribution <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
+    geom_col(aes(y = freq), color = "darkblue", fill = "lightblue") +
+    geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), color = "darkorange", size = 2) + 
     annotate("text",
              x = Inf, y = Inf, hjust = 1, vjust = 1,
              label = paste(
@@ -482,8 +485,8 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
     theme(plot.margin = margin(t = 1, r = 1, 0, 0, unit = "cm")) +
     theme_clean() 
   
-  cum_plot <- ggplot(data = df_famsizes, 
-                     aes(x = nr / max(nr) * 100, 
+  cum_plot <- ggplot(data = df_famsizes,
+                     aes(x = nr / max(nr) * 100,
                          y = cumsum(famsize) / sum(famsize) * 100)) +
     geom_point() +
     labs(title = paste("Cumulative family sizes day", timepoint),
@@ -498,11 +501,6 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
     plot_distribution <- plot_distribution + labs(title = NULL, subtitle = NULL)
     cum_plot <- cum_plot + labs(title = NULL, subtitle = NULL)
   }
-  
-  expected_famsizes_day5$Amount <- as.factor(expected_famsizes_day5$Amount)
-  expected_famsizes_day6$Amount <- as.factor(expected_famsizes_day6$Amount)
-  expected_famsizes_day7$Amount <- as.factor(expected_famsizes_day7$Amount)
-  expected_famsizes_day8$Amount <- as.factor(expected_famsizes_day8$Amount)
   
   return(list(plot_distribution, cum_plot, df_famsizes[2:nrow(df_famsizes),]))
   # df_famsizes is selected from row 2 because the first row contains (0,0) 
