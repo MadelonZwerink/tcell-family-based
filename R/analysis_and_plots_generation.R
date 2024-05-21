@@ -16,7 +16,7 @@ plot_grid_famsize_dist(prim_parameters)
 
 plot_Q_famsize(prim_parameters)
 
-prim_resp <- plot_response(prim_parameters, 0, 40, 0.1)
+prim_resp <- plot_response(prim_parameters, 0, 40, 1)
 prim_resp
 
 sec_parameters <- pick_parameters(bp_rule = 'runif(1, min = 0.5, max = 3.5)',

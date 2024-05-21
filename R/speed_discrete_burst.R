@@ -8,6 +8,7 @@ library(data.table) # CRAN v1.15.0
 library(cowplot)    # CRAN v1.1.3
 library(tibble)     # CRAN v3.2.1
 library(ggthemes)
+library(gridExtra)
 
 source("./R/data_load.R")
 
@@ -19,7 +20,7 @@ source("./R/data_load.R")
 
 pick_parameters <- function(
     bp_rule = "runif(1, min = 0.5, max = 3)",
-    dp_rule,
+    dp_rule = 0.4,
     rq_rule = 0.5,
     t_start_dist,
     t_run_rule,
@@ -31,7 +32,8 @@ pick_parameters <- function(
     quality_dist = NULL,
     ASD = FALSE,
     burst_time = 0.15,
-    max_run_time = 8) {
+    max_run_time = 8,
+    min_t_start = NULL) {
   
   parameters <- data.frame(cell_type = factor(),
                            div_counter = integer(),
@@ -55,6 +57,10 @@ pick_parameters <- function(
     prev_divs <- rep(0, nr_of_families)
   }
   
+  t_start_expr <- substitute(eval(parse(text = t_start_dist)))
+  t_start_val <- eval(t_start_expr)
+  t_start <- round(t_start_val, digits = 2)
+  
   if (!is.null(quality_dist)) {
     quality <- round(eval(parse(text = paste(quality_dist))), digits = 2)
     # beta distribution: rbeta(nr_of_families, shape1 = 2, shape2 = 5)
@@ -67,9 +73,7 @@ pick_parameters <- function(
   cells <- 2^nr_burst_divs
   div_counter <- nr_burst_divs + prev_divs
   t_burst <- rep(burst_time, nr_of_families)
-  t_start_expr <- substitute(eval(parse(text = t_start_dist)))
-  t_start_val <- eval(t_start_expr)
-  t_start <- round(t_start_val, digits = 2)
+
   
   for (i in seq(nr_of_families)) {
     # Make sure the families have the correct family number
@@ -114,6 +118,10 @@ pick_parameters <- function(
       if (t_start[i] < 0) {
         t_start[i] <- 0.01
       }
+      if (!is.null(min_t_start)){
+        if (t_start[i] < min_t_start) {
+          t_start[i] <- runif(1, min = min_t_start, max = (min_t_start + 1.5))
+      }}
       
       if (cell_type[cell] == "P"){
         bp <- round(eval(parse(text = bp_rule)), digits = 2)
@@ -289,9 +297,6 @@ plot_response <- function(parameters, min_time, max_time, interval){
   plot <- ggplot(data = response, aes(x = time, y = log_cells)) +
     geom_point() +
     labs(
-      title = "Response",
-      subtitle = paste(
-        "Nr. of families:", n_distinct(famsizes_table$fam_nr)),
       x = "Time (days)",
       y = "Number of cells (log)"
     ) + theme_clean()
@@ -436,7 +441,7 @@ generate_max_fam_plot <- function(prim_parameters,
 
 #-------------------------------------------------------------------------------
 
-plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "max"), binwidth = 1, show_title = T) {
+plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "max"), binwidth = 1, show_title = T, plot = T) {
   fam_nr <- c()
   famsize <- c()
   
@@ -470,16 +475,11 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
   else{expected_famsizes <- data.frame(Number_2log = 0, Frequency = 0)}
   # To make sure the function doesnt break when the timepoint is not 5,6,7 or 8
   
-  plot_distribution <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
-    geom_col(aes(y = freq), color = "darkblue", fill = "lightblue") +
+  if(plot == T){
+    plot_distribution <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
+    geom_bar(aes(y = freq), stat = "identity", fill = "skyblue") +
     geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), color = "darkorange", size = 2) + 
-    annotate("text",
-             x = Inf, y = Inf, hjust = 1, vjust = 1,
-             label = paste(
-               "Mean:", round(mean(df_famsizes$famsize[df_famsizes$famsize > 1]), digits = 0),
-               "\nMedian:", round(median(df_famsizes$famsize[df_famsizes$famsize > 1]), digits = 0)
-             )) +
-    labs(title = paste("Family sizes day", timepoint),
+    labs(title = paste("Day", timepoint),
          x = "Family size (2log)",
          y = "Frequency") +
     theme(plot.margin = margin(t = 1, r = 1, 0, 0, unit = "cm")) +
@@ -496,6 +496,10 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
     scale_y_continuous(limits = c(0, 100), expand = c(0, 0)) +
     geom_vline(xintercept = 5, colour = "red") +
     theme_clean()
+  } else {
+    plot_distribution <- NULL
+    cum_plot <- NULL
+  }
   
   if (show_title == F) {
     plot_distribution <- plot_distribution + labs(title = NULL, subtitle = NULL)
@@ -509,22 +513,24 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
 
 #-------------------------------------------------------------------------------
 
-plot_grid_famsize_dist <- function(parameters){
+plot_grid_famsize_dist <- function(parameters, make_plot = T){
   output <- list()
-  titles <- list()
+  table_famsizes <- list()
   stats <- data.frame(timepoint = integer(), mean = integer(), median = integer())
   for(timepoint in c(5, 6, 7, 8)){
-    plot <- plot_famsize_dist(parameters, timepoint = timepoint, method = "time", show_title = F)
-    title <- ggplot() + labs(title = paste("Day", timepoint))
-    plot_title <- plot_grid(title, plot[[1]], ncol = 1, rel_heights = c(0.15, 0.85))
-    output[timepoint - 4] <- list(plot_title)
+    plot <- plot_famsize_dist(parameters, timepoint = timepoint, method = "time", show_title = T, plot = make_plot)
+    
+    if(make_plot == T){output[timepoint - 4] <- list(plot[[1]])}
+    
     output_stats <- plot[[3]]
+    table_famsizes[timepoint - 4] <- list(output_stats$logfamsize)
     stat_mean <- round(mean(output_stats$famsize[output_stats$famsize > 1]), digits = 0)
     stat_median <- round(median(output_stats$famsize[output_stats$famsize > 1]), digits = 0)
     stats %<>% add_row(timepoint = timepoint, mean = stat_mean, median = stat_median)
   }
-  plots <- plot_grid(plotlist = output, align = "hv", rel_widths = c(0.5, 0.5), rel_heights = c(0.5, 0.5))
-  return(list(plots, stats))
+  if(make_plot == T){plots <- grid.arrange(grobs = output, ncol = 2)}
+  else{plots <- NULL}
+  return(list(plots, stats, table_famsizes))
 } 
 
 # _______________________________________________________________________________
@@ -559,12 +565,11 @@ plot_Q_famsize <- function(parameters, show_legend = T, show_title = T, stats_pl
   plot <- ggplot(data = Q_famsize) +
     geom_point(aes(x = log_famsize, y = Q_cells, col = burst_divs)) +
     labs(
-      title = "Nr. of Q cells as a function of maximum family size",
       x = "10log(max. family size)",
       y = "Nr. of Q cells",
       color = "Number of burst divisions"
     ) + theme_clean() +
-    theme(legend.position = "bottom",
+    theme(legend.position = "top",
           legend.justification = 0,
           legend.background = element_rect(fill="white",
                                            size=0.5, linetype="solid", 

@@ -1,0 +1,51 @@
+[1] "Seed: 11"
+[1] "Nr. of families: 500"
+[1] "Distribution start times: rlnorm(nr_of_families, meanlog = 1.35, sdlog = 0.2) \nWith minimum: 2.5"
+[1] "Nr of burst divisons rule: sample(c(1,2,3,4), nr_of_families, replace = TRUE)"
+[1] "Distribution proliferation rates: runif(1, min = 0.5, max = 3)"
+[1] "Distribution of stop times: rlnorm(1, meanlog = 0.7, sdlog = 0.4)"
+[1] "Chance to become Q cell: 0.5"
+[1] "Famsize stats"
+  timepoint mean median
+1         5   31     16
+2         6  137     35
+3         7  856     63
+4         8 4867     64
+[1] "Correlation nr of Q cells and family size (primary response)"
+
+	Spearman's rank correlation rho
+
+data:  Q_famsize$log_famsize and Q_famsize$Q_cells
+S = 14428414, p-value = 2.093e-12
+alternative hypothesis: true rho is not equal to 0
+sample estimates:
+      rho 
+0.3074333 
+
+[1] "Family sizes on day 7 per response"
+       mean     median
+1  854.1443   61.70325
+2 1806.3336  620.35920
+3 7237.8119 3700.08376
+[1] "Correlation family size prim and sec"
+
+	Spearman's rank correlation rho
+
+data:  max_cells$cells_prim and max_cells$cells_sec
+S = 16730624, p-value = 9.169e-06
+alternative hypothesis: true rho is not equal to 0
+sample estimates:
+      rho 
+0.1969269 
+
+[1] "Correlation family size sec and ter"
+
+	Spearman's rank correlation rho
+
+data:  max_cells$cells_sec and max_cells$cells_ter
+S = 8827058, p-value < 2.2e-16
+alternative hypothesis: true rho is not equal to 0
+sample estimates:
+      rho 
+0.5762995 
+
