@@ -154,81 +154,6 @@ pick_parameters <- function(
 
 #-------------------------------------------------------------------------------
 
-run_model <- function(parameters,
-                      t_total = 100,
-                      response_nr = 1,
-                      t_previous = 0,
-                      prev_results = NULL) {
-  n_sol <- list()
-  parameters <<- parameters
-
-  for (i in 1:nrow(parameters)) {
-    t_run <- parameters$t_run[i]
-    t_correct <- parameters$t_correct[i]
-
-    input_vectors <- generate_input_vectors(n = n,
-                                            parameters = parameters,
-                                            i = i)
-    # make sure that cells do not proliferate after tRun
-    this_run <- run(tmax = t_total - parameters$t_start[i] - 0.01,
-                    tstep = 0.01,
-                    state = input_vectors,
-                    parms = c(dp = parameters$dp[i],
-                              bp = parameters$bp[i],
-                              dq = parameters$dq[i],
-                              bq = parameters$bq[i]),
-                    table = TRUE,
-                    arrest = (t_run - t_correct),
-                    after = "if(t==t_run - t_correct)parms[\"bp\"]<-0",
-                    timeplot = FALSE)
-
-    # add time before the start of replication to the time
-    this_run$time <- this_run$time + parameters$t_start[i]
-
-    # add the values before start of proliferation and set to input vectors
-    for (time_point in seq(0, parameters$t_start[i] - 0.005, 0.01)) {
-      this_run[nrow(this_run) + 1, ] <- c(time_point, input_vectors)
-    }
-
-    this_run$time <- round(this_run$time, digits = 2) + t_previous + 0.01
-    this_run <- this_run[order(this_run$time), ]
-    this_run %<>% mutate(fam_nr = parameters$fam_nr[i],
-                         fam_nr_2 = 0,
-                         fam_nr_3 = 0)
-
-    if (response_nr == 2) {
-      this_run %<>% mutate(fam_nr_2 = i)
-    }
-    if (response_nr == 3) {
-      this_run %<>% mutate(fam_nr_2 = prev_results$fam_nr_2[i],
-                           fam_nr_3 = i)
-    }
-
-    n_sol[[i]] <- this_run
-    print(i)
-  }
-  return(n_sol)
-}
-
-#-------------------------------------------------------------------------------
-
-generate_input_vectors <- function(n,
-                                   parameters,
-                                   i) {
-  P <- rep(0, n)
-  Q <- rep(0, n)
-  if (parameters$cell_type[i] == "P") {
-    P[parameters$div_counter[i]] <- 1
-  } else {
-    Q[parameters$div_counter[i]] <- 1
-  }
-  names(P) <- paste0("P", seq(1, n))
-  names(Q) <- paste0("Q", seq(1, n))
-  return(c(P, Q))
-}
-
-#-------------------------------------------------------------------------------
-
 get_famsize <- function(parameters, timepoint){
   time_start_prolif <- parameters$t_start + parameters$t_burst*parameters$nr_burst_divs
   time_stop_prolif <- parameters$t_start + parameters$t_run - parameters$t_correct
@@ -287,43 +212,36 @@ solve_function <- function(parameters, min_time, max_time, interval) {
 
 #-------------------------------------------------------------------------------
 
-plot_response <- function(parameters, min_time, max_time, interval){
+generate_total_response_table <- function(parameters, min_time, max_time, interval){
   famsizes_table <- solve_function(parameters, min_time, max_time, interval)
   timepoints <- seq(min_time, max_time, interval)
   num_timepoints <- length(timepoints)
   total_resp <- apply(famsizes_table[,4 : (num_timepoints + 3)], 2, FUN = sum)
   response <- data.frame(time = timepoints, cells = total_resp, log_cells = log10(total_resp))
   
+  return(response)
+}
+
+#-------------------------------------------------------------------------------
+
+plot_response <- function(response){
   plot <- ggplot(data = response, aes(x = time, y = log_cells)) +
     geom_point() +
     labs(
       x = "Time (days)",
       y = "Number of cells (log)"
     ) + theme_clean()
-  return(list(response, plot))
+  return(plot)
 }
 
 #-------------------------------------------------------------------------------
 
-wide_to_long <- function(solve_table) {
-  solve_table %<>% pivot_longer(cols = 4:ncol(solve_table), 
-                                names_to = "time", 
-                                values_to = "cells")
-  solve_table$time <- as.numeric(solve_table$time)
-  return(solve_table)
-}
-
-#-------------------------------------------------------------------------------
-
-generate_max_fam_plot <- function(prim_parameters, 
+generate_max_fam_table <- function(prim_parameters, 
                                   sec_parameters, 
                                   ter_parameters, 
                                   type = c("time", "max"), 
                                   timepoint = NULL, 
-                                  remove_zeroes = FALSE, 
-                                  relative = FALSE, 
-                                  show_title = TRUE) {
-  library(cowplot)  # CRAN v1.1.3 # CRAN v1.1.3
+                                  remove_zeroes = FALSE) {
   
   nr_of_families <- max(prim_parameters$fam_nr)
   max_prim <- rep(0, nr_of_families)
@@ -352,24 +270,26 @@ generate_max_fam_plot <- function(prim_parameters,
       max_ter[ter_parameters$fam_nr[i]] <- max_ter[ter_parameters$fam_nr[i]] + get_max_famsize(ter_parameters[i,])
     }
   }
-  nr_burst_divs <- c()
-  for (i in 1:nr_of_families) {
-    nr_burst_divs[i] <- prim_parameters$nr_burst_divs[first(which(prim_parameters$fam_nr == i))]
-  }
+  
+  nr_burst_divs <- prim_parameters$nr_burst_divs[match(1:nr_of_families, prim_parameters$fam_nr)]
+  
   max_cells <- data.frame(
     fam_nr = seq(1, nr_of_families),
     cells_prim = max_prim,
     cells_sec = max_sec,
     cells_ter = max_ter,
-    nr_burst_divs = factor(nr_burst_divs),
-    rel_cells_prim = max_prim / sum(max_prim),
-    rel_cells_sec = max_sec / sum(max_sec),
-    rel_cells_ter = max_ter / sum(max_ter)
+    nr_burst_divs = factor(nr_burst_divs)
   )
   if (remove_zeroes == TRUE) {
     max_cells <- max_cells[max_cells$cells_ter > 0, ]
   }
   
+  return(max_cells)
+}
+
+#-------------------------------------------------------------------------------
+
+generate_max_fam_stats <- function(max_cells){
   # Calculate Spearman correlation coefficients
   cor_prim_sec <- cor.test(max_cells$cells_prim, max_cells$cells_sec, method = "spearman")
   cor_sec_ter <- cor.test(max_cells$cells_sec, max_cells$cells_ter, method = "spearman")
@@ -382,9 +302,18 @@ generate_max_fam_plot <- function(prim_parameters,
   median_sec <- median(max_cells$cells_sec)
   median_ter <- median(max_cells$cells_ter)
   stats <- data.frame(mean = c(mean_prim, mean_sec, mean_ter),
-                      median = c(median_prim, median_sec, median_ter))
+                      median = c(median_prim, median_sec, median_ter),
+                      correlation = c(cor_prim_sec$estimate, 0, cor_sec_ter$estimate),
+                      p_value = c(cor_prim_sec$p.value, 0, cor_sec_ter$p.value))
+  return(stats)
+}
+
+#-------------------------------------------------------------------------------
+
+plot_prim_sec_max_fam <- function(max_cells, 
+                         show_title = TRUE){ 
   
-  plot_prim_sec <- ggplot(data = max_cells, 
+  plot <- ggplot(data = max_cells, 
                           aes(x = log10(cells_prim), y = log10(cells_sec))) +
     geom_point(aes(col = nr_burst_divs)) +
     labs(title = "Primary vs. Secondary Response",
@@ -393,8 +322,21 @@ generate_max_fam_plot <- function(prim_parameters,
     theme_clean() +
     theme(legend.position = "none")
   
+
   
-  plot_sec_ter <- ggplot(data = max_cells, 
+  if (show_title == FALSE) {
+    plot <- plot + labs(title = NULL, subtitle = NULL)
+  }
+  
+  return(plot)
+} 
+
+#-------------------------------------------------------------------------------
+
+plot_sec_ter_max_fam <- function(max_cells, 
+                                show_title = TRUE){ 
+
+  plot <- ggplot(data = max_cells, 
                          aes(x = log10(cells_sec), y = log10(cells_ter))) +
     geom_point(aes(col = nr_burst_divs)) +
     labs(
@@ -404,79 +346,64 @@ generate_max_fam_plot <- function(prim_parameters,
     theme_clean() +
     theme(legend.position = "none")
   
-  plot_rel_prim_sec <- ggplot(data = max_cells, 
-                              aes(x = log10(rel_cells_prim), y = log10(rel_cells_sec))) +
-    geom_point(aes(col = nr_burst_divs)) +
-    labs(
-      title = "Primary vs. Secondary Response",
-      x = "Primary Max Value",
-      y = "Secondary Max Value"
-    ) + theme(legend.position = "none") +
-    theme_clean()
-  
-  plot_rel_sec_ter <- ggplot(data = max_cells, aes(x = log10(rel_cells_sec), y = log10(rel_cells_ter))) +
-    geom_point(aes(col = nr_burst_divs)) +
-    labs(
-      title = "Secondary vs. Tertiary Response",
-      x = "Family size secondary (log-scale)",
-      y = "Family size tertiary (log-scale)"
-    ) + theme(legend.position = "none") +
-    theme_clean()
   
   if (show_title == FALSE) {
-    plot_prim_sec <- plot_prim_sec + labs(title = NULL, subtitle = NULL)
-    plot_sec_ter <- plot_sec_ter + labs(title = NULL, subtitle = NULL)
-    plot_rel_prim_sec <- plot_rel_prim_sec + labs(title = NULL, subtitle = NULL)
-    plot_rel_sec_ter <- plot_rel_sec_ter + labs(title = NULL, subtitle = NULL)
+    plot <- plot + labs(title = NULL, subtitle = NULL)
   }
   
-  if (relative == T) {
-    plots <- plot_grid(plot_rel_prim_sec, plot_rel_sec_ter)
-  } else {
-    plots <- plot_grid(plot_prim_sec, plot_sec_ter)
-  }
-  
-  return(list(max_cells, plots, stats, cor_prim_sec, cor_sec_ter))
-}
+  return(plot)
+} 
 
 #-------------------------------------------------------------------------------
 
-plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "max"), binwidth = 1, show_title = T, plot = T) {
+generate_famsize_table <- function(parameters, timepoint = NULL) {
   fam_nr <- c()
   famsize <- c()
   
-  if (method == "max") {
-    fam_nr <- parameters$fam_nr
-    famsize <- get_max_famsize(parameters)
-  }
   for (i in 1:nrow(parameters)) {
     fam_nr[i] <- parameters$fam_nr[i]
     famsize[i] <- get_famsize(parameters[i,], timepoint)
   }
+
   df_famsizes <- data.frame(fam_nr = fam_nr, famsize = famsize)
   df_famsizes <- aggregate(famsize ~ fam_nr, data = df_famsizes, sum) 
   df_famsizes <- df_famsizes[order(df_famsizes$famsize, decreasing = TRUE), ]
   df_famsizes$logfamsize <- log2(df_famsizes$famsize)
-  df_famsizes$nr <- seq(nrow(df_famsizes))
   
-  freq_famsizes <<- data.frame(table(round(df_famsizes$logfamsize)))
+  return(df_famsizes)
+}
+
+#-------------------------------------------------------------------------------
+
+generate_famsize_stats <- function(df_famsizes){
+  stat_mean <- round(mean(df_famsizes$famsize[df_famsizes$famsize > 1]), digits = 0)
+  stat_median <- round(median(df_famsizes$famsize[df_famsizes$famsize > 1]), digits = 0)
+  
+  return(c(stat_mean, stat_median))
+}
+
+#-------------------------------------------------------------------------------
+
+generate_freq_famsize_table <- function(logfamsizes){
+  freq_famsizes <- data.frame(table(round(logfamsizes)))
   colnames(freq_famsizes) <- c("logfamsize", "freq")
   freq_famsizes$freq <- freq_famsizes$freq/sum(freq_famsizes$freq)
   while (nrow(freq_famsizes) < 16) {
     freq_famsizes <- add_row(freq_famsizes, logfamsize = as.factor(nrow(freq_famsizes)+1), freq = 0)}
   
-  zeros_row <- c(0, 0, 0, 0) 
-  # We would like to have this row as the first value, so that the cumplot 
-  # starts at 0,0
-  df_famsizes <- rbind(zeros_row, df_famsizes)
-  
+  return(freq_famsizes)
+}
+
+#-------------------------------------------------------------------------------
+
+plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = F){
+
   if(timepoint %in% c(5,6,7,8)){
     expected_famsizes <- get(paste0("day", timepoint))}
   else{expected_famsizes <- data.frame(Number_2log = 0, Frequency = 0)}
   # To make sure the function doesnt break when the timepoint is not 5,6,7 or 8
   
-  if(plot == T){
-    plot_distribution <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
+  plot <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
     geom_bar(aes(y = freq), stat = "identity", fill = "skyblue") +
     geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), color = "darkorange", size = 2) + 
     labs(title = paste("Day", timepoint),
@@ -484,8 +411,25 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
          y = "Frequency") +
     theme(plot.margin = margin(t = 1, r = 1, 0, 0, unit = "cm")) +
     theme_clean() 
+    
+  if (show_title == F) {
+    plot <- plot + labs(title = NULL, subtitle = NULL)
+  }
+    
+  return(plot)
+}
+
+#-------------------------------------------------------------------------------
+
+plot_cum_famsize <- function(df_famsizes, timepoint, show_title = F){
+  df_famsizes$nr <- seq(nrow(df_famsizes))
   
-  cum_plot <- ggplot(data = df_famsizes,
+  zeros_row <- c(0, 0, 0, 0) 
+  # We would like to have this row as the first value, so that the cumplot 
+  # starts at 0,0
+  df_famsizes <- rbind(zeros_row, df_famsizes)
+
+  plot <- ggplot(data = df_famsizes,
                      aes(x = nr / max(nr) * 100,
                          y = cumsum(famsize) / sum(famsize) * 100)) +
     geom_point() +
@@ -496,72 +440,83 @@ plot_famsize_dist <- function(parameters, timepoint = NULL, method = c("time", "
     scale_y_continuous(limits = c(0, 100), expand = c(0, 0)) +
     geom_vline(xintercept = 5, colour = "red") +
     theme_clean()
-  } else {
-    plot_distribution <- NULL
-    cum_plot <- NULL
-  }
   
   if (show_title == F) {
-    plot_distribution <- plot_distribution + labs(title = NULL, subtitle = NULL)
-    cum_plot <- cum_plot + labs(title = NULL, subtitle = NULL)
+    plot <- plot + labs(title = NULL, subtitle = NULL)
   }
-  
-  return(list(plot_distribution, cum_plot, df_famsizes[2:nrow(df_famsizes),]))
-  # df_famsizes is selected from row 2 because the first row contains (0,0) 
-  # for the cumplot
+  return(plot)
 }
 
 #-------------------------------------------------------------------------------
 
-plot_grid_famsize_dist <- function(parameters, make_plot = T){
-  output <- list()
-  table_famsizes <- list()
-  stats <- data.frame(timepoint = integer(), mean = integer(), median = integer())
-  for(timepoint in c(5, 6, 7, 8)){
-    plot <- plot_famsize_dist(parameters, timepoint = timepoint, method = "time", show_title = T, plot = make_plot)
-    
-    if(make_plot == T){output[timepoint - 4] <- list(plot[[1]])}
-    
-    output_stats <- plot[[3]]
-    table_famsizes[timepoint - 4] <- list(output_stats$logfamsize)
-    stat_mean <- round(mean(output_stats$famsize[output_stats$famsize > 1]), digits = 0)
-    stat_median <- round(median(output_stats$famsize[output_stats$famsize > 1]), digits = 0)
-    stats %<>% add_row(timepoint = timepoint, mean = stat_mean, median = stat_median)
-  }
-  if(make_plot == T){plots <- grid.arrange(grobs = output, ncol = 2)}
-  else{plots <- NULL}
-  return(list(plots, stats, table_famsizes))
+generate_famsize_dist_multidays <- function(parameters){
+  
+  famsizes_table <- lapply(5:8, function(day) {
+    generate_famsize_table(parameters, timepoint = day)
+  })
+  
+  return(famsizes_table)
 } 
+
+#-------------------------------------------------------------------------------
+
+generate_famsize_stats_multidays <- function(famsizes_table){
+  famsizes_stats <- lapply(5:8, function(day) {
+    c(day, generate_famsize_stats(famsizes_table[[day-4]]))
+  })
+  famsizes_stats <- data.frame(do.call(rbind, famsizes_stats))
+  colnames(famsizes_stats) <- c("timepoint", "mean", "median")
+  
+  return(famsizes_stats)
+}
+
+#-------------------------------------------------------------------------------
+
+plot_grid_famsize_dist <- function(famsizes_table){
+  frequencies_table <- lapply(1:4, function(day) {
+    generate_freq_famsize_table(famsizes_table[[day]]$logfamsize)
+  })
+  plots <- lapply(5:8, function(day) {
+    plot_famsize_distribution(frequencies_table[[day-4]], day, show_title = T)
+  })
+  plot <- grid.arrange(grobs = plots, ncol = 2)
+  
+  return(plot)
+}
 
 # _______________________________________________________________________________
 # This function plots the size of the family as a function of the number of Q cells that are formed
 
-plot_Q_famsize <- function(parameters, show_legend = T, show_title = T, stats_plot = F) {
-  famsize <- c()
-  Q_cells <- c()
-  burst_divs <- c()
-  index_P_cells <- which(parameters$cell_type == "P")
-  time_start_prolif <- parameters$t_start + parameters$t_burst*parameters$nr_burst_divs
-  time_stop_prolif <- parameters$t_start + parameters$t_run - parameters$t_correct
+generate_Q_famsize_table <- function(parameters) {
+  max_famsizes <- get_max_famsize(parameters)
+  Q_famsize_table <- data.frame(fam_nr = parameters$fam_nr, 
+                                cell_type = parameters$cell_type, 
+                                nr_burst_divs = parameters$nr_burst_divs, 
+                                max_famsize = max_famsizes)
+  Q_famsize_table %<>%
+    group_by(fam_nr) %>%
+    summarize(
+      famsize = sum(max_famsize),
+      Q_cells = sum(cell_type == "Q"),
+      nr_burst_divs = as.factor(first(nr_burst_divs))  # Since nr_burst_divs is the same for each fam_nr
+    )
   
-  for (fam_nr in 1:max(parameters$fam_nr)) {
-    # For each family, first determine how many Q cells are formed
-    Q_cells[fam_nr] <- sum(parameters$cell_type[parameters$fam_nr == fam_nr] == "Q")
-    famsize[fam_nr] <- Q_cells[fam_nr]
-    burst_divs[fam_nr] <- first(parameters$nr_burst_divs[parameters$fam_nr == fam_nr])
-    
-    # Then determine how many P cells are formed and calculate how large the progeny of each of these P cells will be
-    fam_cells <- which(parameters$fam_nr == fam_nr)
-    P_cells <- intersect(index_P_cells, fam_cells)
-    
-    for (P_cell in P_cells) {
-      famsize[fam_nr] <- famsize[fam_nr] + exp(parameters$bp[P_cell] * (time_stop_prolif[P_cell] - time_start_prolif[P_cell]))
-    }
-  }
-  Q_famsize <- data.frame(Q_cells = Q_cells, burst_divs = as.factor(burst_divs), famsize = famsize, log_famsize = log10(famsize))
+  Q_famsize_table$log_famsize <- log10(Q_famsize_table$famsize)
   
-  correlation <- cor.test(Q_famsize$log_famsize, Q_famsize$Q_cells, method = "spearman")
+  return(Q_famsize_table)
+}
+
+#-------------------------------------------------------------------------------
+
+get_Q_famsize_stats <- function(Q_famsize_table){
+  correlation <- cor.test(Q_famsize$famsize, Q_famsize$Q_cells, method = "spearman")
   
+  return(correlation)
+}
+
+#-------------------------------------------------------------------------------
+
+plot_Q_famsize <- function(Q_famsize_table, show_title = T, show_legend = T){
   plot <- ggplot(data = Q_famsize) +
     geom_point(aes(x = log_famsize, y = Q_cells, col = burst_divs)) +
     labs(
@@ -581,18 +536,28 @@ plot_Q_famsize <- function(parameters, show_legend = T, show_title = T, stats_pl
   if (show_legend == F) {
     plot <- plot + theme(legend.position = "none")
   }
-  if (stats_plot == T){
-    plot <- plot + annotate("text",
-                            x = max(Q_famsize$log_famsize) - 0.5, y = max(Q_cells) - 1,
-                            label = paste(
-                            "r =", round(correlation$estimate, digits = 2),
-                            "\nP =", format(correlation$p.value, scientific = TRUE)
-                            )
-    )
-  }
   
-  return(list(plot, correlation))
+  return(plot)
 }
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+
+# Functions below are not used anymore
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+
+wide_to_long <- function(solve_table) {
+  solve_table %<>% pivot_longer(cols = 4:ncol(solve_table), 
+                                names_to = "time", 
+                                values_to = "cells")
+  solve_table$time <- as.numeric(solve_table$time)
+  return(solve_table)
+}
+
 
 #-------------------------------------------------------------------------------
 
@@ -659,3 +624,80 @@ SSR_famsize_dist <- function(prim_parameters) {
     list(famsizes_day5, famsizes_day6, famsizes_day7, famsizes_day8)
   ))
 }
+
+#-------------------------------------------------------------------------------
+
+run_model <- function(parameters,
+                      t_total = 100,
+                      response_nr = 1,
+                      t_previous = 0,
+                      prev_results = NULL) {
+  n_sol <- list()
+  parameters <<- parameters
+  
+  for (i in 1:nrow(parameters)) {
+    t_run <- parameters$t_run[i]
+    t_correct <- parameters$t_correct[i]
+    
+    input_vectors <- generate_input_vectors(n = n,
+                                            parameters = parameters,
+                                            i = i)
+    # make sure that cells do not proliferate after tRun
+    this_run <- run(tmax = t_total - parameters$t_start[i] - 0.01,
+                    tstep = 0.01,
+                    state = input_vectors,
+                    parms = c(dp = parameters$dp[i],
+                              bp = parameters$bp[i],
+                              dq = parameters$dq[i],
+                              bq = parameters$bq[i]),
+                    table = TRUE,
+                    arrest = (t_run - t_correct),
+                    after = "if(t==t_run - t_correct)parms[\"bp\"]<-0",
+                    timeplot = FALSE)
+    
+    # add time before the start of replication to the time
+    this_run$time <- this_run$time + parameters$t_start[i]
+    
+    # add the values before start of proliferation and set to input vectors
+    for (time_point in seq(0, parameters$t_start[i] - 0.005, 0.01)) {
+      this_run[nrow(this_run) + 1, ] <- c(time_point, input_vectors)
+    }
+    
+    this_run$time <- round(this_run$time, digits = 2) + t_previous + 0.01
+    this_run <- this_run[order(this_run$time), ]
+    this_run %<>% mutate(fam_nr = parameters$fam_nr[i],
+                         fam_nr_2 = 0,
+                         fam_nr_3 = 0)
+    
+    if (response_nr == 2) {
+      this_run %<>% mutate(fam_nr_2 = i)
+    }
+    if (response_nr == 3) {
+      this_run %<>% mutate(fam_nr_2 = prev_results$fam_nr_2[i],
+                           fam_nr_3 = i)
+    }
+    
+    n_sol[[i]] <- this_run
+    print(i)
+  }
+  return(n_sol)
+}
+
+#-------------------------------------------------------------------------------
+
+generate_input_vectors <- function(n,
+                                   parameters,
+                                   i) {
+  P <- rep(0, n)
+  Q <- rep(0, n)
+  if (parameters$cell_type[i] == "P") {
+    P[parameters$div_counter[i]] <- 1
+  } else {
+    Q[parameters$div_counter[i]] <- 1
+  }
+  names(P) <- paste0("P", seq(1, n))
+  names(Q) <- paste0("Q", seq(1, n))
+  return(c(P, Q))
+}
+
+#-------------------------------------------------------------------------------
