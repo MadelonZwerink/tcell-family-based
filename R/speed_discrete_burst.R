@@ -11,6 +11,7 @@ library(ggthemes)
 library(gridExtra)
 library(patchwork)
 library(ggpubr)
+library(scales)
 
 source("./R/data_load.R") 
 # The package plyr is loaded in the data_load file, therefore the package 
@@ -38,6 +39,9 @@ th <- theme(legend.position = "bottom",
             axis.title.y = element_text(face="bold"),
             axis.line.x = element_line(size = 0.3),
             axis.line.y = element_line(size = 0.3))
+
+burst_colors <- c("#fde725", "#35b779", "#31688e", "#440154")
+names(burst_colors) <- c(1, 2, 3, 4)
 
 #-------------------------------------------------------------------------------
 
@@ -132,7 +136,9 @@ pick_parameters <- function(
       t_run <- round(t_run_val, digits = 2)
       
       # this is to make sure all proliferation stops at max_run_time
-      if (t_start[i] + t_run >= max_run_time) {
+      if (is.null(max_run_time)) {
+        t_correct <- 0
+      } else if (t_start[i] + t_run >= max_run_time) {
         t_correct <- round((t_start[i] + t_run - max_run_time), digits = 2)
       } else {
         t_correct <- 0
@@ -354,27 +360,52 @@ get_max_fam_stats <- function(max_cells){
 #-------------------------------------------------------------------------------
 
 plot_prim_sec_max_fam <- function(max_cells, 
-                         show_title = FALSE){ 
+                                  show_title = FALSE,
+                                  label_burst_divs = c("col", "shape", "both")){ 
+  
+  # Create the geom layer based on the condition
+  geom_layer <- 
+    if(label_burst_divs == "col") {
+      list(
+        geom_point(aes(col = as.factor(nr_burst_divs), size = Q_cells), alpha = 0.75),
+        scale_size(range = c(0.5, 2.5), breaks = seq(0, max(max_cells$Q_cells))),
+        scale_color_manual(values = burst_colors),
+        labs(color = "Nr. of burst divisions (prim. resp.)")) 
+  } else if(label_burst_divs == "shape") {
+      list(
+        geom_point(aes(col = Q_cells, shape = as.factor(nr_burst_divs)), 
+                   size = 1, alpha = 0.75),
+        scale_color_viridis_c(option = "inferno", direction = -1,
+                              limits = c(0, 15),
+                              labels = c(0, 5, 10, 15),
+                              breaks = c(0, 5, 10, 15),
+                              alpha = 0.75), 
+        guides(colour = guide_colourbar(show.limits = TRUE, 
+                                 title.position = "top",
+                                 barwidth = 10,
+                                 barheight = 0.5)),
+        labs(color = "Nr. of Q cells (prim. resp.)"))
+  } else if(label_burst_divs == "both") {
+      list(
+        geom_point(aes(shape = as.factor(nr_burst_divs), col = as.factor(nr_burst_divs)), 
+                   size = 1, alpha = 0.75),
+        labs(color = "Nr. of burst divisions (prim. resp.)"),
+        scale_color_manual(values = burst_colors)) 
+  } else {
+    stop("Invalid label") 
+  }
   
   plot <- ggplot(data = max_cells, 
                           aes(x = log10(cells_prim), y = log10(cells_sec))) +
-    geom_point(aes(col = Q_cells, shape = nr_burst_divs), size = 2) +
+    geom_layer +
     labs(title = "Primary vs. Secondary Response",
          x = "Family size primary (log-scale)",
          y = "Family size secondary (log-scale)",
-         shape = "Nr. of burst divisions (prim. resp.)",
-         color = "Nr. of Q cells (prim. resp.)") +
+         shape = "Nr. of burst divisions (prim. resp.)") +
     theme_clean() +
     th + 
-    guides(size = "none", shape = guide_legend(title.position = "top"), 
-           colour = guide_colourbar(show.limits = TRUE, 
-                                    title.position = "top",
-                                    barwidth = 10,
-                                    barheight = 0.5)) +
-    scale_color_viridis_c(option = "inferno", direction = -1,
-                          limits = c(0, 15),
-                          labels = c(0, 5, 10, 15),
-                          breaks = c(0, 5, 10, 15)) +
+    theme(legend.box.background = element_rect(color="lightgrey")) +
+    guides(size = "none", shape = guide_legend(title.position = "top"))  +
     scale_shape_manual(values = c(20, 17, 15))
   
   if (show_title == FALSE) {
@@ -384,28 +415,49 @@ plot_prim_sec_max_fam <- function(max_cells,
   return(plot)
 } 
 
+
 #-------------------------------------------------------------------------------
 
 plot_sec_ter_max_fam <- function(max_cells, 
-                                show_title = FALSE){ 
-
+                                 show_title = FALSE,
+                                 label_burst_divs = c("col", "shape", "both")){ 
+  
+  # Create the geom layer based on the condition
+  geom_layer <- 
+    if(label_burst_divs == "col") {
+      list(
+        geom_point(aes(col = as.factor(nr_burst_divs), size = Q_cells), alpha = 0.75),
+        scale_color_manual(values = burst_colors),
+      scale_size(range = c(0.5, 2.5), breaks = seq(0, max(max_cells$Q_cells)))) 
+    } else if(label_burst_divs == "shape") {
+      list(
+        geom_point(aes(col = Q_cells, shape = as.factor(nr_burst_divs)), size = 1, alpha = 0.75),
+        scale_color_viridis_c(option = "inferno", direction = -1,
+                              limits = c(0, 15),
+                              labels = c(0, 5, 10, 15),
+                              breaks = c(0, 5, 10, 15),
+                              alpha = 0.75))
+    } else if(label_burst_divs == "both") {
+      list(
+        geom_point(aes(shape = as.factor(nr_burst_divs), 
+                       col = as.factor(nr_burst_divs)), 
+                   size = 1, alpha = 0.75),
+        scale_color_manual(values = burst_colors)) 
+    } else {
+      stop("Invalid label") 
+    }
+  
   plot <- ggplot(data = max_cells, 
                          aes(x = log10(cells_sec), y = log10(cells_ter))) +
-    geom_point(aes(col = Q_cells, shape = nr_burst_divs), size = 2) +
+    geom_layer +
     labs(
       title = "Secondary vs. Tertiary Response",
       x = "Family size secondary (log-scale)",
-      y = "Family size tertiary (log-scale)",
-      shape = "Nr. of burst divisions (prim. resp.)",
-      color = "Nr. of Q cells (prim. resp.)") +
+      y = "Family size tertiary (log-scale)") +
     theme_clean() +
     th +  
     guides(size = "none", color = "none", 
            shape = "none") +
-    scale_color_viridis_c(option = "inferno", direction = -1,
-                          limits = c(0, 15),
-                          labels = c(0, 5, 10, 15),
-                          breaks = c(0, 5, 10, 15)) +
     scale_shape_manual(values = c(20, 17, 15))
 
   
@@ -449,7 +501,7 @@ get_famsize_stats <- function(df_famsizes){
 generate_freq_famsize_table <- function(logfamsizes){
   freq_famsizes <- data.frame(table(round(logfamsizes)))
   colnames(freq_famsizes) <- c("logfamsize", "freq")
-  freq_famsizes$logfamsize <- as.numeric(freq_famsizes$logfamsize)
+  freq_famsizes$logfamsize <- as.numeric(as.character(freq_famsizes$logfamsize))
   freq_famsizes$freq <- freq_famsizes$freq/sum(freq_famsizes$freq)
   
   return(freq_famsizes)
@@ -467,11 +519,11 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = F,
   if(is.null(x_axis_max)) {
     x_axis_max <- max(freq_famsizes$logfamsize, expected_famsizes$Number_2log) + 1}
   if(is.null(y_axis_max)) {
-    y_axis_max <- max(freq_famsizes$Freq, expected_famsizes$Frequency) + 0.02}
+    y_axis_max <- max(freq_famsizes$Freq, expected_famsizes$Frequency) + 0.05}
   
   plot <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
     geom_bar(aes(y = freq), stat = "identity", fill = "#9f2a63") +
-    geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), color = "#9c9797", size = 2, shape = 15) + 
+    geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), color = "#9c9797", size = 1.5, shape = 19) + 
     labs(title = paste("Day", timepoint),
          x = "Family size (2log)",
          y = "Frequency") +
@@ -481,7 +533,8 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = F,
           axis.text.x = element_text(face = NULL, size = 7.5)) +
     coord_cartesian(ylim = c(0, y_axis_max), xlim = c(0, x_axis_max)) + 
     scale_x_continuous(breaks = 0:x_axis_max, 
-                       guide = guide_axis(angle = 60))
+                       guide = guide_axis(angle = 60)) +
+    scale_y_continuous(labels = label_number(accuracy = 0.01))
     
   if (show_title == F) {
     plot <- plot + labs(title = NULL, subtitle = NULL)
@@ -543,18 +596,24 @@ get_famsize_stats_multidays <- function(famsizes_table){
 
 #-------------------------------------------------------------------------------
 
-plot_h_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_max = NULL){
+generate_freq_famsize_table_multidays <- function(famsizes_table){
   frequencies_table <- lapply(1:4, function(day) {
     generate_freq_famsize_table(famsizes_table[[day]]$logfamsize)
   })
+  
+  return(frequencies_table)
+}
+
+#-------------------------------------------------------------------------------
+
+plot_h_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_max = NULL){
+  frequencies_table <- generate_freq_famsize_table_multidays(famsizes_table)
+  
   if(is.null(x_axis_max)) {
-    x_axis_max <- rep(max(frequencies_table[[1]]$logfamsize), 4)
+    x_axis_max <- rep(max(frequencies_table[[4]]$logfamsize), 4) + 1
   }
   if(is.null(y_axis_max)){
-    y_axis_max <- c(max(frequencies_table[[1]]$freq), 
-                    max(frequencies_table[[2]]$freq),
-                    max(frequencies_table[[3]]$freq),
-                    max(frequencies_table[[4]]$freq))
+    y_axis_max <- rep(max(frequencies_table[[1]]$freq) + 0.05, 4)
   }
   
   plots <- lapply(5:8, function(day) {
@@ -576,21 +635,60 @@ plot_h_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_m
 
 #-------------------------------------------------------------------------------
 
+plot_v_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_max = NULL){
+  frequencies_table <- generate_freq_famsize_table_multidays(famsizes_table)
+  
+  if(is.null(x_axis_max)) {
+    x_axis_max <- rep(max(frequencies_table[[4]]$logfamsize), 4) + 1
+  }
+  if(is.null(y_axis_max)){
+    y_axis_max <- c(max(frequencies_table[[1]]$freq, frequencies_table[[2]]$freq) + 0.05, 
+                    max(frequencies_table[[2]]$freq, frequencies_table[[2]]$freq) + 0.05,
+                    max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq) + 0.05,
+                    max(frequencies_table[[4]]$freq, frequencies_table[[4]]$freq) + 0.05)
+  }
+  
+  plots <- lapply(5:8, function(day) {
+    plot_famsize_distribution(frequencies_table[[day-4]], day, 
+                              x_axis_max = x_axis_max[day-4], y_axis_max = y_axis_max[day-4])
+  })
+  plots_no_xlabel <- lapply(1:3, function(day) {
+    plots[[day]] + theme(axis.title.x = element_blank(),
+                         plot.margin = margin(t = 0.4, r = 0.5, b = 0, l = 0.5, unit = "cm"))
+  })
+  plots_one_xlabel <- list(plots_no_xlabel[[1]], 
+                           plots_no_xlabel[[2]], 
+                           plots_no_xlabel[[3]], 
+                           plots[[4]]+ theme(plot.margin = margin(t = 0.4, r = 0.5, b = 0.2, l = 0.5, unit = "cm")))
+  
+  gt <- arrangeGrob(grobs = plots_one_xlabel, nrow = 4, heights = c(4,4,4,4.6))
+  plot <- as_ggplot(gt) +                                # transform to a ggplot
+    draw_plot_label(label = c("A - d5", 
+                               "B - d6", 
+                              "C - d7", 
+                              "D - d8"), size = 13,
+                    y = c(1.002, 0.76, 0.52, 0.28), x = rep(-0.03, 4))
+  
+  return(plot)
+}
+
+#-------------------------------------------------------------------------------
+
 plot_sq_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_max = NULL){
   frequencies_table <- lapply(1:4, function(day) {
     generate_freq_famsize_table(famsizes_table[[day]]$logfamsize)
   })
   if(is.null(x_axis_max)){
-    x_axis_max <- c(max(frequencies_table[[1]]$logfamsize, frequencies_table[[3]]$logfamsize),
-                    max(frequencies_table[[2]]$logfamsize, frequencies_table[[4]]$logfamsize),
-                    max(frequencies_table[[1]]$logfamsize, frequencies_table[[3]]$logfamsize),
-                    max(frequencies_table[[2]]$logfamsize, frequencies_table[[4]]$logfamsize))
+    x_axis_max <- c(max(frequencies_table[[1]]$logfamsize, frequencies_table[[3]]$logfamsize) + 1,
+                    max(frequencies_table[[2]]$logfamsize, frequencies_table[[4]]$logfamsize) + 1,
+                    max(frequencies_table[[1]]$logfamsize, frequencies_table[[3]]$logfamsize) + 1,
+                    max(frequencies_table[[2]]$logfamsize, frequencies_table[[4]]$logfamsize) + 1)
   }
   if(is.null(y_axis_max)){
-    y_axis_max <- c(max(frequencies_table[[1]]$freq, frequencies_table[[2]]$freq), 
-                    max(frequencies_table[[1]]$freq, frequencies_table[[2]]$freq),
-                    max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq),
-                    max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq))
+    y_axis_max <- c(max(frequencies_table[[1]]$freq, frequencies_table[[2]]$freq) + 0.05, 
+                    max(frequencies_table[[1]]$freq, frequencies_table[[2]]$freq) + 0.05,
+                    max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq) + 0.05,
+                    max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq) + 0.05)
   }
   
   plots <- lapply(5:8, function(day) {
@@ -610,7 +708,7 @@ plot_sq_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_
   gt <- arrangeGrob(grobs = plots_two_ylabel, ncol = 2, widths = c(4.8, 4), heights = c(2, 2.5))
   plot <- as_ggplot(gt) +                                # transform to a ggplot
     draw_plot_label(label = c("A - day 5", "B - day 6", "C - day 7", "D - day 8"), size = 12,
-                    x = c(0.03, 0.515, 0.03, 0.515), y = c(0.99, 0.99, 0.56, 0.56))
+                    x = c(0.04, 0.515, 0.04, 0.515), y = c(0.98, 0.98, 0.55, 0.55))
   
   return(plot)
 }
@@ -619,8 +717,8 @@ plot_sq_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_
 # This function plots the size of the family as a function of the number of Q cells that are formed
 
 generate_Q_famsize_table <- function(parameters) {
-  max_famsizes <<- get_max_famsize(parameters)
-  Q_famsize <<- as_tibble(data.frame(fam_nr = as.factor(parameters$fam_nr), 
+  max_famsizes <- get_max_famsize(parameters)
+  Q_famsize <- as_tibble(data.frame(fam_nr = as.factor(parameters$fam_nr), 
                                 cell_type = parameters$cell_type, 
                                 nr_burst_divs = parameters$nr_burst_divs, 
                                 max_famsize = max_famsizes))
@@ -648,20 +746,55 @@ get_Q_famsize_stats <- function(Q_famsize_table){
 
 #-------------------------------------------------------------------------------
 
-plot_Q_famsize <- function(Q_famsize_table, show_legend = F){
-  plot <- ggplot(data = Q_famsize_table) +
-    geom_point(aes(x = log_famsize, y = Q_cells, shape = as.factor(nr_burst_divs)), size = 2) +
+plot_Q_famsize <- function(Q_famsize_table, 
+                           show_legend = F, 
+                           label_burst_divs = c("shape", "col", "both"),
+                           linear_model = F){
+  # Create the geom layer based on the condition
+  geom_layer <- if(label_burst_divs == "col") {
+    list(
+      geom_point(aes(col = as.factor(nr_burst_divs)), size = 0.6, alpha = 0.8),
+      scale_color_manual(values = burst_colors),
+      guides(col = guide_legend(title.position = "top", ncol = 1)),
+      theme(legend.position = "right",
+            #legend.justification = c("left", "top"),
+            legend.box.background = element_rect(color="lightgrey")))
+  } else if(label_burst_divs == "shape") {
+    geom_point(aes(shape = as.factor(nr_burst_divs)), size = 0.6, alpha = 0.8)
+  } else if(label_burst_divs == "both") {
+    list(
+      geom_point(aes(shape = as.factor(nr_burst_divs), 
+                     col = as.factor(nr_burst_divs)), 
+                     size = 0.8, alpha = 0.8),
+      scale_color_manual(values = burst_colors),
+      guides(col = guide_legend(title.position = "top", ncol = 1)),
+      theme(legend.position = "right",
+            #legend.justification = c("left", "top"),
+            legend.box.background = element_rect(color="lightgrey")))
+  } else {
+    stop("Invalid label") 
+  }
+  lm_layer <- if(linear_model == T){
+    list(
+      geom_smooth(method = lm, aes(col = as.factor(nr_burst_divs))),
+      geom_smooth(method = lm, col = "black"))
+  }
+  
+  plot <- ggplot(data = Q_famsize_table, (aes(x = log_famsize, y = Q_cells))) +
+    theme_clean() + th +
+    geom_layer +
     labs(
       x = "Max. fam. size prim. response (log-scale)",
       y = "Nr. of Q cells",
-      shape = "Nr. of burst divisions"
-    ) + theme_clean() +
-    th +
-    scale_shape_manual(values = c(20, 17, 15))
+      shape = "Nr. of burst divisions",
+      col = "# b. div."
+    ) + 
+    scale_shape_manual(values = c(20, 17, 15)) +
+    lm_layer
   
   if (show_legend == F) {
     plot <- plot + theme(legend.position = "none")
-  }
+  } 
   
   return(plot)
 }

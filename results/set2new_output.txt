@@ -7,45 +7,45 @@
 [1] "Chance to become Q cell: 0.5"
 [1] "Famsize stats"
   timepoint mean median
-1         5   62     18
-2         6  525     48
-3         7 2621    119
-4         8 4540    221
+1         5   59     18
+2         6  503     44
+3         7 2382    121
+4         8 3691    194
 [1] "Correlation nr of Q cells and family size (primary response)"
 
 	Spearman's rank correlation rho
 
 data:  Q_famsize$log_famsize and Q_famsize$Q_cells
-S = 16554996, p-value = 3.659e-06
+S = 17171286, p-value = 7.769e-05
 alternative hypothesis: true rho is not equal to 0
 sample estimates:
      rho 
-0.205357 
+0.175775 
 
 [1] "Family sizes on day 7 per response"
        mean     median
-1  2526.483   106.3771
-2  9709.358  2783.9909
-3 54312.064 32537.6739
+1  2314.980   114.1006
+2  9778.058  3202.5242
+3 48978.767 31202.9662
 [1] "Correlation family size prim and sec"
 
 	Spearman's rank correlation rho
 
 data:  max_cells$cells_prim and max_cells$cells_sec
-S = 19037140, p-value = 0.05403
+S = 19582523, p-value = 0.1802
 alternative hypothesis: true rho is not equal to 0
 sample estimates:
        rho 
-0.08621363 
+0.06003512 
 
 [1] "Correlation family size sec and ter"
 
 	Spearman's rank correlation rho
 
 data:  max_cells$cells_sec and max_cells$cells_ter
-S = 12406583, p-value < 2.2e-16
+S = 11298712, p-value < 2.2e-16
 alternative hypothesis: true rho is not equal to 0
 sample estimates:
       rho 
-0.4044816 
+0.4576597 
 
