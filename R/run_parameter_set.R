@@ -89,6 +89,8 @@ famsize_dist_sq_plot <- plot_sq_grid_famsize_dist(df_famsizes)
 Q_famsize_shape_plot <- plot_Q_famsize(Q_famsize_table, label_burst_divs = "shape")
 Q_famsize_col_plot <- plot_Q_famsize(Q_famsize_table, label_burst_divs = "col", show_legend = T, linear_model = F)
 
+Q_famsize_all_resp_plot <- plot_Q_famsize_boxplots(max_fam_table)
+
 cor_prim_sec_nrQ_plot <- plot_prim_sec_max_fam(max_fam_table, label_burst_divs = "shape")
 cor_sec_ter_nrQ_plot <-  plot_sec_ter_max_fam(max_fam_table, label_burst_divs = "shape")
 
@@ -178,7 +180,9 @@ sec_resp_stats <- get_total_response_stats(sec_resp)
 ter_resp_stats <- get_total_response_stats(ter_resp)
 response_stats <- rbind(prim_resp_stats, sec_resp_stats, ter_resp_stats)
 
-Q_famsize_stats <- get_Q_famsize_stats(Q_famsize_table)
+Q_prim_famsize_stats <- get_Q_prim_famsize_stats(Q_famsize_table)
+
+Q_famsize_stats <- get_Q_famsize_stats(max_fam_table)
 
 famsize_dist_stats <- get_famsize_stats_multidays(df_famsizes)
 
@@ -215,6 +219,12 @@ ggsave(paste0(folder, run_name, "_famsize_dist_sq_plot.pdf"), plot = famsize_dis
 ggsave(paste0(folder, run_name, "_Q_famsize.pdf"), plot = Q_famsize_plot, 
        width = 2500, height = 1800, units = "px")
 
+ggsave(paste0(folder, run_name, "_Q_famsize_boxplot.pdf"), plot = Q_famsize_all_resp_plot, 
+       width = 1950, height = 3093, units = "px")
+
+ggsave(paste0(folder, run_name, "_Q_famsize_boxplot.png"), plot = Q_famsize_all_resp_plot, 
+       width = 1950, height = 3093, units = "px")
+
 ggsave(paste0(folder, run_name, "_cor_prim_sec_plot.pdf"), plot = cor_prim_sec_plot, 
        width = 1500, height = 1300, units = "px")
 
@@ -250,8 +260,11 @@ print(famsize_dist_stats)
 print("Response stats")
 print(response_stats)
 
-print("Correlation nr of Q cells and family size (primary response)")
+print("Correlation nr of Q cells and family size (day 7)")
 print(Q_famsize_stats)
+
+print("Correlation nr of Q cells and maximum family size in primary response")
+print(Q_prim_famsize_stats)
 
 print("Family sizes on day 7 per response and correlation prim-sec and sec-ter family size")
 print(max_fam_stats)

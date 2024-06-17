@@ -23,7 +23,14 @@
 1   2163347      8.9    2209
 2   8178330     58.7   10186
 3  39240429    108.5   47160
-[1] "Correlation nr of Q cells and family size (primary response)"
+
+[1] "Correlation nr of Q cells and family size (day 7)"
+          r      p_value
+1 0.1135496 1.105634e-02
+2 0.6342010 1.288368e-57
+3 0.7011894 3.446636e-75
+
+[1] "Correlation nr of Q cells and maximum family size in primary response"
 
 	Spearman's rank correlation rho
 

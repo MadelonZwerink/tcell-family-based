@@ -12,6 +12,7 @@ library(gridExtra)
 library(patchwork)
 library(ggpubr)
 library(scales)
+library(ggtext)
 
 source("./R/data_load.R") 
 # The package plyr is loaded in the data_load file, therefore the package 
@@ -47,7 +48,7 @@ names(burst_colors) <- c(1, 2, 3, 4)
 
 pick_parameters <- function(
     bp_rule = "runif(1, min = 0.5, max = 3)",
-    dp_rule = 0.4,
+    dp_rule = 0.5,
     rq_rule = 0.5,
     t_start_dist,
     t_run_rule,
@@ -738,10 +739,23 @@ generate_Q_famsize_table <- function(parameters) {
 
 #-------------------------------------------------------------------------------
 
-get_Q_famsize_stats <- function(Q_famsize_table){
-  correlation <- cor.test(Q_famsize_table$famsize, Q_famsize_table$Q_cells, method = "spearman")
+get_Q_famsize_stats <- function(max_fam_table){
+  prim_cor <- cor.test(max_fam_table$cells_prim, max_fam_table$Q_cells, method = "spearman")
+  sec_cor <- cor.test(max_fam_table$cells_sec, max_fam_table$Q_cells, method = "spearman")
+  ter_cor <- cor.test(max_fam_table$cells_ter, max_fam_table$Q_cells, method = "spearman")
   
-  return(correlation)
+  correlations <- data.frame(r = c(prim_cor$estimate, sec_cor$estimate, ter_cor$estimate),
+                             p_value = c(prim_cor$p.value, sec_cor$p.value, ter_cor$p.value))
+  
+  return(correlations)
+}
+
+#-------------------------------------------------------------------------------
+
+get_Q_prim_famsize_stats <- function(Q_famsize_table){
+  prim_cor <- cor.test(Q_famsize_table$famsize, Q_famsize_table$Q_cells, method = "spearman")
+  
+  return(prim_cor)
 }
 
 #-------------------------------------------------------------------------------
@@ -797,6 +811,100 @@ plot_Q_famsize <- function(Q_famsize_table,
   } 
   
   return(plot)
+}
+
+#-------------------------------------------------------------------------------
+
+generate_Q_mean_famsize_table <- function(max_fam_table){
+  mean_max_fam_table <- max_fam_table %>% 
+    group_by(Q_cells) %>% 
+    summarise(mean_prim = mean(cells_prim), 
+              mean_sec = mean(cells_sec), 
+              mean_ter = mean(cells_ter),
+              sd_prim = sd(cells_prim),
+              sd_sec = sd(cells_sec),
+              sd_ter = sd(cells_ter),
+              n = n())
+  
+  return(mean_max_fam_table)
+}
+
+#-------------------------------------------------------------------------------
+
+plot_Q_famsize_boxplots <- function(max_fam_table){
+  mean_max_fam_table <- generate_Q_mean_famsize_table(max_fam_table)
+  myxlab <- paste(as.factor(mean_max_fam_table$Q_cells), "\nN=", mean_max_fam_table$n, sep="")
+  
+  plot_Q_prim <- ggplot(max_fam_table, aes(x = as.factor(Q_cells), fill = Q_cells)) + 
+    geom_boxplot(aes(y = log10(cells_prim))) +
+    scale_fill_viridis_c(option = "inferno", direction = -1,
+                         limits = c(0, 15),
+                         labels = c(0, 5, 10, 15),
+                         breaks = c(0, 5, 10, 15)) +
+    guides(fill = guide_colourbar(show.limits = TRUE, 
+                                  title.position = "top",
+                                  barwidth = 10,
+                                  barheight = 0.5)) +
+    labs(
+      x = "Q cells in prim. resp.",
+      y = "log10(family size)",
+      fill = "Nr. of Q cells (prim. resp.)") + 
+    theme_clean() + th +
+    theme(legend.box.background = element_rect(color="lightgrey"),
+          legend.position = "none",
+          axis.text.x = element_blank(), 
+          axis.title.x = element_blank()) +
+    guides(size = "none", shape = guide_legend(title.position = "top")) 
+  
+  plot_Q_sec <- ggplot(max_fam_table, aes(x = as.factor(Q_cells), fill = Q_cells)) + 
+    geom_boxplot(aes(y = log10(cells_sec))) +
+    scale_fill_viridis_c(option = "inferno", direction = -1,
+                         limits = c(0, 15),
+                         labels = c(0, 5, 10, 15),
+                         breaks = c(0, 5, 10, 15)) +
+    guides(fill = guide_colourbar(show.limits = TRUE, 
+                                  title.position = "top",
+                                  barwidth = 10,
+                                  barheight = 0.5)) +
+    labs(
+      x = "Q cells in prim. resp.",
+      y = "log10(family size)",
+      fill = "Nr. of Q cells (prim. resp.)") + 
+    theme_clean() + th +
+    theme(legend.box.background = element_rect(color="lightgrey"),
+          legend.position = "none",
+          axis.text.x = element_blank(), 
+          axis.title.x = element_blank()) +
+    guides(size = "none", shape = guide_legend(title.position = "top")) 
+  
+  plot_Q_ter <- ggplot(max_fam_table, aes(x = as.factor(Q_cells), fill = Q_cells)) + 
+    geom_boxplot(aes(y = log10(cells_ter))) +
+    scale_fill_viridis_c(option = "inferno", direction = -1,
+                         limits = c(0, 15),
+                         labels = c(0, 5, 10, 15),
+                         breaks = c(0, 5, 10, 15)) +
+    guides(fill = guide_colourbar(show.limits = TRUE, 
+                                  title.position = "top",
+                                  barwidth = 10,
+                                  barheight = 0.5)) +
+    labs(
+      x = "Q cells in prim. resp.",
+      y = "log10(family size)",
+      fill = "Nr. of Q cells (prim. resp.)") + 
+    theme_clean() + th +
+    theme(legend.box.background = element_rect(color="lightgrey")) +
+    guides(size = "none", shape = guide_legend(title.position = "top"))  +
+    scale_x_discrete(labels=myxlab)
+  
+  grob_plots <- arrangeGrob(grobs = list(plot_Q_prim, plot_Q_sec, plot_Q_ter), 
+                            ncol = 1, heights = c(0.285, 0.285, 0.43))
+  
+  plots <- as_ggplot(grob_plots) +
+    draw_plot_label(label = c("A", "B", "C"),
+                    x = c(0,0,0), 
+                    y = c(1, 0.715, 0.43))
+  
+  return(plots)
 }
 
 #-------------------------------------------------------------------------------
