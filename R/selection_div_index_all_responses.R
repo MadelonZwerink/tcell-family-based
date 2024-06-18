@@ -1,3 +1,5 @@
+# Open this, to get the division index for the whole population
+
 seed <- 4321
 families = 500
 

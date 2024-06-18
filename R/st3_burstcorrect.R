@@ -1,5 +1,5 @@
 folder <- "./results/model1/"
-run_name <- "st2_nomax"
+run_name <- "st3_burstcorrect"
 seed <- 4321
 families = 500
 

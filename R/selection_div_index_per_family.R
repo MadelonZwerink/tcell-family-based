@@ -1,3 +1,5 @@
+# Open this, to get the division index distribution for each family
+
 get_exp_divs <- function(parameters){
   exp_divs <- parameters$bp * (parameters$t_run - (parameters$t_burst * parameters$nr_burst_divs))
   return(exp_divs)
@@ -66,6 +68,19 @@ ggplot(div_index_prim_grouped, aes(x = div_index,
                                    alpha = 0.5)) +
   geom_line() +
   theme(legend.position = "none") + xlim(0, 25)
+
+#-------------------------------------------------------------------------------
+
+exp_divs_prim <- get_exp_divs(prim_parameters)
+exp_divs_prim <- data.frame(fam_nr = prim_parameters$fam_nr, exp_divs = (exp_divs_prim + as.numeric(prim_parameters$div_counter)))
+
+ggplot(exp_divs_prim, aes(x = exp_divs, y = as.factor(fam_nr), 
+                          fill = as.factor(fam_nr))) +
+  geom_violin() +
+  geom_point(shape = 21) +
+  theme(legend.position = "none")
+
+#-------------------------------------------------------------------------------
 
 sum_cells <- data.frame(div_index = seq(0, n-1), 
                         nr_cells = colSums(div_cells, na.rm = TRUE), 
