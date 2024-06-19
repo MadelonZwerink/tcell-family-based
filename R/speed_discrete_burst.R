@@ -1,18 +1,52 @@
+#!/usr/bin/env Rscript
 speed_version <- "31-01-2024"
 
-library(tidyverse)  # CRAN v2.0.0
-library(magrittr)   # CRAN v2.0.3
-library(ggplot2)    # CRAN v3.4.4
-library(purrr)      # CRAN v1.0.2
-library(data.table) # CRAN v1.15.0
-library(cowplot)    # CRAN v1.1.3
-library(tibble)     # CRAN v3.2.1
-library(ggthemes)
-library(gridExtra)
-library(patchwork)
-library(ggpubr)
-library(scales)
-library(ggtext)
+if(Sys.info()[[4]]=="LAPTOP-3RJSLMKV") {
+  print("Working from R-project")
+  setwd("~/BiBC/Major_internship/tcell-family-based")
+} else {setwd('~/Documents')
+        .libPaths("./R")}
+
+packages <- c("tidyverse", "magrittr", "ggplot2", "purrr", "data.table", 
+              "cowplot", "tibble", "ggthemes", "gridExtra", "patchwork",
+              "ggpubr", "scales", "ggtext", "dplyr")
+
+# Function to install missing packages and log any errors
+install_if_missing <- function(p) {
+  if (!requireNamespace(p, quietly = TRUE)) {
+    tryCatch({
+      install.packages(p, dependencies = TRUE, lib = "~/Documents/R")
+    }, error = function(e) {
+      message(sprintf("Error installing package '%s': %s", p, e$message))
+    })
+  }
+  library(p, character.only = TRUE)
+}
+
+# Install and load each package
+lapply(packages, install_if_missing)
+
+# Verify the installation
+installed_packages <- rownames(installed.packages(lib.loc = "./R"))
+missing_packages <- setdiff(packages, installed_packages)
+if (length(missing_packages) > 0) {
+  message("The following packages could not be installed: ", paste(missing_packages, collapse = ", "))
+} else {
+  message("All packages installed successfully.")
+}
+#library(tidyverse)  # CRAN v2.0.0
+#library(magrittr)   # CRAN v2.0.3
+#library(ggplot2)    # CRAN v3.4.4
+#library(purrr)      # CRAN v1.0.2
+#library(data.table) # CRAN v1.15.0
+#library(cowplot)    # CRAN v1.1.3
+#library(tibble)     # CRAN v3.2.1
+#library(ggthemes)
+#library(gridExtra)
+#library(patchwork)
+#library(ggpubr)
+#library(scales)
+#library(ggtext)
 
 source("./R/data_load.R") 
 # The package plyr is loaded in the data_load file, therefore the package 
@@ -180,10 +214,83 @@ pick_parameters <- function(
   return(parameters)
 }
 
+#-------------------------------------------------------------------------------
+
+# Optimized get_famsize function
+get_famsize <- function(parameters, timepoint) {
+  time_start_prolif <- parameters$t_start + parameters$t_burst * parameters$nr_burst_divs
+  time_stop_prolif <- parameters$t_start + parameters$t_run - parameters$t_correct
+  
+  if (timepoint <= parameters$t_start) { 
+    famsize <- 1 / 2^parameters$nr_burst_divs 
+  } else if (timepoint <= time_start_prolif) { 
+    div_times <- seq(parameters$t_start + parameters$t_burst, 
+                     parameters$t_start + parameters$t_burst * parameters$nr_burst_divs, 
+                     by = parameters$t_burst)
+    index <- sum(timepoint >= div_times)
+    famsize <- 2^index / 2^parameters$nr_burst_divs 
+  } else if (timepoint <= time_stop_prolif) { 
+    famsize <- exp(parameters$bp * (timepoint - time_start_prolif))
+  } else { 
+    max_cells <- exp(parameters$bp * (time_stop_prolif - time_start_prolif))
+    famsize <- max_cells * exp(-parameters$dp * (timepoint - time_stop_prolif))
+  }
+  
+  return(famsize)
+}
+
+# Optimized solve_function using apply
+solve_function <- function(parameters, min_time, max_time, interval) {
+  timepoints <- seq(min_time, max_time, by = interval)
+  num_timepoints <- length(timepoints)
+  
+  # Create a data frame with pre-filled columns
+  P_total <- data.frame(matrix(0, nrow = nrow(parameters), ncol = num_timepoints + 3))
+  colnames(P_total) <- c("fam_nr", "fam_nr_2", "fam_nr_3", timepoints)
+  P_total$fam_nr <- as.factor(parameters$fam_nr)
+  P_total$fam_nr_2 <- as.factor(parameters$fam_nr_2)
+  P_total$fam_nr_3 <- as.factor(parameters$fam_nr_3)
+  
+  # Precompute times for burst division phases
+  div_times_list <- lapply(1:nrow(parameters), function(i) {
+    seq(parameters$t_start[i] + parameters$t_burst[i], 
+        parameters$t_start[i] + parameters$t_burst[i] * parameters$nr_burst_divs[i], 
+        by = parameters$t_burst[i])
+  })
+  
+  # Function to compute famsizes for a single cell across all timepoints
+  compute_famsizes <- function(cell_index) {
+    params <- parameters[cell_index, ]
+    time_start_prolif <- params$t_start + params$t_burst * params$nr_burst_divs
+    time_stop_prolif <- params$t_start + params$t_run - params$t_correct
+    
+    sapply(timepoints, function(timepoint) {
+      if (timepoint <= params$t_start) {
+        1 / 2^params$nr_burst_divs
+      } else if (timepoint <= time_start_prolif) {
+        index <- sum(timepoint >= div_times_list[[cell_index]])
+        2^index / 2^params$nr_burst_divs
+      } else if (timepoint <= time_stop_prolif) {
+        exp(params$bp * (timepoint - time_start_prolif))
+      } else {
+        max_cells <- exp(params$bp * (time_stop_prolif - time_start_prolif))
+        max_cells * exp(-params$dp * (timepoint - time_stop_prolif))
+      }
+    })
+  }
+  
+  # Apply the compute_famsizes function to each cell
+  famsize_matrix <- t(sapply(1:nrow(parameters), compute_famsizes))
+  
+  # Populate P_total with the computed famsizes
+  P_total[, 4:(num_timepoints + 3)] <- famsize_matrix
+  
+  return(P_total)
+}
 
 #-------------------------------------------------------------------------------
 
-get_famsize <- function(parameters, timepoint){
+get_famsize_old <- function(parameters, timepoint){
   time_start_prolif <- parameters$t_start + parameters$t_burst*parameters$nr_burst_divs
   time_stop_prolif <- parameters$t_start + parameters$t_run - parameters$t_correct
   
@@ -221,7 +328,7 @@ get_max_famsize <- function(parameters){
 
 #-------------------------------------------------------------------------------
 
-solve_function <- function(parameters, min_time, max_time, interval) {
+solve_function_old <- function(parameters, min_time, max_time, interval) {
   num_timepoints <- length(seq(min_time, max_time, interval))
   P_total <- data.frame(matrix(0, nrow = nrow(parameters), ncol = num_timepoints + 3))
   colnames(P_total) <- c("fam_nr", "fam_nr_2", "fam_nr_3", seq(min_time, max_time, by = interval))
@@ -321,6 +428,22 @@ generate_max_fam_table <- function(prim_parameters,
   nr_burst_divs <- prim_parameters$nr_burst_divs[match(1:nr_of_families, prim_parameters$fam_nr)]
   Q_cells <- prim_parameters %>% group_by(fam_nr) %>%
     summarize(Q_count = sum(cell_type == "Q"))
+  Q_cells_sec <- sec_parameters %>% group_by(fam_nr) %>%
+    summarize(Q_count = sum(cell_type == "Q"))
+  Q_cells_ter <- ter_parameters %>% group_by(fam_nr) %>%
+    summarize(Q_count = sum(cell_type == "Q"))
+  
+  fill_missing_families <- function(Q_cells){
+    missing_fams <- setdiff(seq(nr_of_families), Q_cells$fam_nr)
+    remaining_values <- data.frame(fam_nr = as.numeric(missing_fams), 
+                                   Q_count = rep(0, length(missing_fams)))
+    Q_cells <- rbind(Q_cells, remaining_values) 
+    Q_cells <- Q_cells[order(Q_cells$fam_nr),]
+    return(Q_cells)
+  }
+  
+  Q_cells_sec <- fill_missing_families(Q_cells_sec)
+  Q_cells_ter <- fill_missing_families(Q_cells_ter)
   
   max_cells <- data.frame(
     fam_nr = seq(1, nr_of_families),
@@ -328,7 +451,9 @@ generate_max_fam_table <- function(prim_parameters,
     cells_sec = max_sec,
     cells_ter = max_ter,
     nr_burst_divs = factor(nr_burst_divs),
-    Q_cells = Q_cells$Q_count
+    Q_cells = Q_cells$Q_count,
+    Q_cells_sec = Q_cells_sec$Q_count,
+    Q_cells_ter = Q_cells_ter$Q_count
   )
   if (remove_zeroes == TRUE) {
     max_cells <- max_cells[max_cells$cells_ter > 0, ]
@@ -339,7 +464,7 @@ generate_max_fam_table <- function(prim_parameters,
 
 #-------------------------------------------------------------------------------
 
-get_max_fam_stats <- function(max_cells){
+get_max_fam_stats <- function(max_cells, table = T){
   # Calculate Spearman correlation coefficients
   cor_prim_sec <- cor.test(max_cells$cells_prim, max_cells$cells_sec, method = "spearman")
   cor_sec_ter <- cor.test(max_cells$cells_sec, max_cells$cells_ter, method = "spearman")
@@ -351,10 +476,17 @@ get_max_fam_stats <- function(max_cells){
   median_prim <- median(max_cells$cells_prim)
   median_sec <- median(max_cells$cells_sec)
   median_ter <- median(max_cells$cells_ter)
-  stats <- data.frame(mean = c(mean_prim, mean_sec, mean_ter),
-                      median = c(median_prim, median_sec, median_ter),
-                      correlation = c(cor_prim_sec$estimate, 0, cor_sec_ter$estimate),
-                      p_value = c(cor_prim_sec$p.value, 0, cor_sec_ter$p.value))
+  if(table == T){
+    stats <- data.frame(mean = c(mean_prim, mean_sec, mean_ter),
+                    median = c(median_prim, median_sec, median_ter),
+                    correlation = c(cor_prim_sec$estimate, 0, cor_sec_ter$estimate),
+                    p_value = c(cor_prim_sec$p.value, 0, cor_sec_ter$p.value))}
+  else if(table == F){
+    stats <- data.frame(mean_prim, mean_sec, mean_ter, 
+                        median_prim, median_sec, median_ter,
+                        cor_prim_sec = cor_prim_sec$estimate, p_value_prim_sec = cor_prim_sec$p.value,
+                        cor_sec_ter = cor_sec_ter$estimate, p_value_sec_ter = cor_sec_ter$p.value)}
+
   return(stats)
 }
 
@@ -504,7 +636,14 @@ generate_freq_famsize_table <- function(logfamsizes){
   colnames(freq_famsizes) <- c("logfamsize", "freq")
   freq_famsizes$logfamsize <- as.numeric(as.character(freq_famsizes$logfamsize))
   freq_famsizes$freq <- freq_famsizes$freq/sum(freq_famsizes$freq)
-  
+  if(setequal(freq_famsizes$logfamsize, seq(max(freq_famsizes$logfamsize))) == F){
+    missing_bins <- setdiff(c(0, seq(max(freq_famsizes$logfamsize))), 
+                            freq_famsizes$logfamsize)
+    remaining_values <- data.frame(logfamsize = as.numeric(missing_bins), 
+                                   freq = rep(0, length(missing_bins)))
+    freq_famsizes <- rbind(freq_famsizes, remaining_values) 
+    freq_famsizes <- freq_famsizes[order(freq_famsizes$logfamsize),]
+  }
   return(freq_famsizes)
 }
 
