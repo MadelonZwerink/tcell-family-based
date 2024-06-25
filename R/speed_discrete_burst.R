@@ -367,9 +367,9 @@ get_total_response_stats <- function(response){
   # there's only Q cells left
   Q_cells <- round(response$cells[response$time == max(response$time)])
   
-  stats <- data.frame(max_cells = max_cells, 
-                      time_max = time_max, 
-                      Q_cells = Q_cells)
+  stats <- data.frame(max_cells = as.numeric(max_cells), 
+                      time_max = as.numeric(time_max), 
+                      Q_cells = as.numeric(Q_cells))
   
   return(stats)
 }
@@ -624,9 +624,10 @@ generate_famsize_table <- function(parameters, timepoint = NULL) {
 
 get_famsize_stats <- function(df_famsizes){
   stat_mean <- round(mean(df_famsizes$famsize[df_famsizes$famsize > 1]), digits = 0)
+  stat_sd <- round(sd(df_famsizes$famsize[df_famsizes$famsize > 1]), digits = 3)
   stat_median <- round(median(df_famsizes$famsize[df_famsizes$famsize > 1]), digits = 0)
   
-  return(c(stat_mean, stat_median))
+  return(c(stat_mean, stat_median, stat_sd))
 }
 
 #-------------------------------------------------------------------------------
@@ -650,7 +651,15 @@ generate_freq_famsize_table <- function(logfamsizes){
 #-------------------------------------------------------------------------------
 
 plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = F, 
-                                      x_axis_max = NULL, y_axis_max = NULL){
+                                      x_axis_max = NULL, y_axis_max = NULL, 
+                                      multi_plot = F){
+  if(multi_plot == T){
+    freq_famsizes$freq <- freq_famsizes$means
+    freq_famsizes$logfamsize <- c(0, seq(nrow(freq_famsizes) - 1))
+  } else {
+    freq_famsizes$lower_bound <- NA
+    freq_famsizes$upper_bound <- NA
+  }
   if(timepoint %in% c(5,6,7,8)){
     expected_famsizes <- get(paste0("day", timepoint))}
   else{expected_famsizes <- data.frame(Number_2log = 0, Frequency = 0)}
@@ -662,8 +671,11 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = F,
     y_axis_max <- max(freq_famsizes$Freq, expected_famsizes$Frequency) + 0.05}
   
   plot <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
-    geom_bar(aes(y = freq), stat = "identity", fill = "#9f2a63") +
-    geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), color = "#9c9797", size = 1.5, shape = 19) + 
+    geom_bar(aes(y = freq), 
+             stat = "identity", fill = "#9f2a63") +
+    geom_errorbar(aes(ymin = lower_bound, ymax = upper_bound), width = 0.2) +
+    geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), 
+               color = "#9c9797", size = 1.5, shape = 19) + 
     labs(title = paste("Day", timepoint),
          x = "Family size (2log)",
          y = "Frequency") +
@@ -675,11 +687,11 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = F,
     scale_x_continuous(breaks = 0:x_axis_max, 
                        guide = guide_axis(angle = 60)) +
     scale_y_continuous(labels = label_number(accuracy = 0.01))
-    
+  
   if (show_title == F) {
     plot <- plot + labs(title = NULL, subtitle = NULL)
   }
-    
+  
   return(plot)
 }
 
@@ -746,38 +758,17 @@ generate_freq_famsize_table_multidays <- function(famsizes_table){
 
 #-------------------------------------------------------------------------------
 
-plot_h_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_max = NULL){
-  frequencies_table <- generate_freq_famsize_table_multidays(famsizes_table)
-  
-  if(is.null(x_axis_max)) {
-    x_axis_max <- rep(max(frequencies_table[[4]]$logfamsize), 4) + 1
+plot_v_grid_famsize_dist <- function(famsizes_table = NULL, frequencies_table = NULL, 
+                                     x_axis_max = NULL, y_axis_max = NULL, 
+                                     multi_plot = F){
+  if(multi_plot == T){
+    for(i in seq(4)){
+      frequencies_table[[i]]$freq <- frequencies_table[[i]]$means
+    }
   }
-  if(is.null(y_axis_max)){
-    y_axis_max <- rep(max(frequencies_table[[1]]$freq) + 0.05, 4)
-  }
-  
-  plots <- lapply(5:8, function(day) {
-    plot_famsize_distribution(frequencies_table[[day-4]], day, 
-                              x_axis_max = x_axis_max[day-4], y_axis_max = y_axis_max[day-4])
-  })
-  plots_no_ylabel <- lapply(2:4, function(day) {
-    plots[[day]] + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
-  })
-  plots_one_ylabel <- list(plots[[1]], plots_no_ylabel[[1]], plots_no_ylabel[[2]], plots_no_ylabel[[3]])
-  
-  gt <- arrangeGrob(grobs = plots_one_ylabel, ncol = 4, widths = c(4.6,4,4,4))
-  plot <- as_ggplot(gt) +                                # transform to a ggplot
-    draw_plot_label(label = c("A - day 5", "B - day 6", "C - day 7", "D - day 8"), size = 13,
-                    x = c(0.015, 0.25, 0.49, 0.73), y = c(1, 1, 1, 1))
-  
-  return(plot)
-}
-
-#-------------------------------------------------------------------------------
-
-plot_v_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_max = NULL){
-  frequencies_table <- generate_freq_famsize_table_multidays(famsizes_table)
-  
+  if(is.null(frequencies_table) && !is.null(famsizes_table)){
+    frequencies_table <- generate_freq_famsize_table_multidays(famsizes_table)
+  } else{frequencies_table <- frequencies_table}
   if(is.null(x_axis_max)) {
     x_axis_max <- rep(max(frequencies_table[[4]]$logfamsize), 4) + 1
   }
@@ -787,10 +778,11 @@ plot_v_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_m
                     max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq) + 0.05,
                     max(frequencies_table[[4]]$freq, frequencies_table[[4]]$freq) + 0.05)
   }
-  
   plots <- lapply(5:8, function(day) {
     plot_famsize_distribution(frequencies_table[[day-4]], day, 
-                              x_axis_max = x_axis_max[day-4], y_axis_max = y_axis_max[day-4])
+                              x_axis_max = x_axis_max[day-4], 
+                              y_axis_max = y_axis_max[day-4],
+                              multi_plot = multi_plot)
   })
   plots_no_xlabel <- lapply(1:3, function(day) {
     plots[[day]] + theme(axis.title.x = element_blank(),
@@ -804,51 +796,10 @@ plot_v_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_m
   gt <- arrangeGrob(grobs = plots_one_xlabel, nrow = 4, heights = c(4,4,4,4.6))
   plot <- as_ggplot(gt) +                                # transform to a ggplot
     draw_plot_label(label = c("A - d5", 
-                               "B - d6", 
+                              "B - d6", 
                               "C - d7", 
                               "D - d8"), size = 13,
-                    y = c(1.002, 0.76, 0.52, 0.28), x = rep(-0.03, 4))
-  
-  return(plot)
-}
-
-#-------------------------------------------------------------------------------
-
-plot_sq_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_max = NULL){
-  frequencies_table <- lapply(1:4, function(day) {
-    generate_freq_famsize_table(famsizes_table[[day]]$logfamsize)
-  })
-  if(is.null(x_axis_max)){
-    x_axis_max <- c(max(frequencies_table[[1]]$logfamsize, frequencies_table[[3]]$logfamsize) + 1,
-                    max(frequencies_table[[2]]$logfamsize, frequencies_table[[4]]$logfamsize) + 1,
-                    max(frequencies_table[[1]]$logfamsize, frequencies_table[[3]]$logfamsize) + 1,
-                    max(frequencies_table[[2]]$logfamsize, frequencies_table[[4]]$logfamsize) + 1)
-  }
-  if(is.null(y_axis_max)){
-    y_axis_max <- c(max(frequencies_table[[1]]$freq, frequencies_table[[2]]$freq) + 0.05, 
-                    max(frequencies_table[[1]]$freq, frequencies_table[[2]]$freq) + 0.05,
-                    max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq) + 0.05,
-                    max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq) + 0.05)
-  }
-  
-  plots <- lapply(5:8, function(day) {
-    plot_famsize_distribution(frequencies_table[[day-4]], day, 
-                              x_axis_max = x_axis_max[day-4], y_axis_max = y_axis_max[day-4])
-  })
-  
-  plots_two_ylabel <- list(plots[[1]] + theme(axis.text.x = element_blank(), axis.title.x = element_blank(),
-                                              plot.margin = margin(t = 0.5, r = 0, b = 0, l = 0, unit = "cm")), 
-                           plots[[2]] + theme(axis.text.x = element_blank(), axis.title.x = element_blank(), 
-                                              axis.text.y = element_blank(), axis.title.y = element_blank(),
-                                              plot.margin = margin(t = 0.5, r = 0, b = 0, l = 0, unit = "cm")),
-                           plots[[3]] + theme(plot.margin = margin(t = 0.2, r = 0, b = 0.5, l = 0, unit = "cm")), 
-                           plots[[4]] + theme(axis.text.y = element_blank(), axis.title.y = element_blank(),
-                                              plot.margin = margin(t = 0.2, r = 0, b = 0.5, l = 0, unit = "cm")))
-  
-  gt <- arrangeGrob(grobs = plots_two_ylabel, ncol = 2, widths = c(4.8, 4), heights = c(2, 2.5))
-  plot <- as_ggplot(gt) +                                # transform to a ggplot
-    draw_plot_label(label = c("A - day 5", "B - day 6", "C - day 7", "D - day 8"), size = 12,
-                    x = c(0.04, 0.515, 0.04, 0.515), y = c(0.98, 0.98, 0.55, 0.55))
+                    y = c(1.002, 0.76, 0.53, 0.28), x = rep(-0.03, 4))
   
   return(plot)
 }
@@ -1214,5 +1165,76 @@ generate_input_vectors <- function(n,
   names(Q) <- paste0("Q", seq(1, n))
   return(c(P, Q))
 }
+
+#-------------------------------------------------------------------------------
+
+plot_h_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_max = NULL){
+  frequencies_table <- generate_freq_famsize_table_multidays(famsizes_table)
+  
+  if(is.null(x_axis_max)) {
+    x_axis_max <- rep(max(frequencies_table[[4]]$logfamsize), 4) + 1
+  }
+  if(is.null(y_axis_max)){
+    y_axis_max <- rep(max(frequencies_table[[1]]$freq) + 0.05, 4)
+  }
+  
+  plots <- lapply(5:8, function(day) {
+    plot_famsize_distribution(frequencies_table[[day-4]], day, 
+                              x_axis_max = x_axis_max[day-4], y_axis_max = y_axis_max[day-4])
+  })
+  plots_no_ylabel <- lapply(2:4, function(day) {
+    plots[[day]] + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
+  })
+  plots_one_ylabel <- list(plots[[1]], plots_no_ylabel[[1]], plots_no_ylabel[[2]], plots_no_ylabel[[3]])
+  
+  gt <- arrangeGrob(grobs = plots_one_ylabel, ncol = 4, widths = c(4.6,4,4,4))
+  plot <- as_ggplot(gt) +                                # transform to a ggplot
+    draw_plot_label(label = c("A - day 5", "B - day 6", "C - day 7", "D - day 8"), size = 13,
+                    x = c(0.015, 0.25, 0.49, 0.73), y = c(1, 1, 1, 1))
+  
+  return(plot)
+}
+
+#-------------------------------------------------------------------------------
+
+plot_sq_grid_famsize_dist <- function(famsizes_table, x_axis_max = NULL, y_axis_max = NULL){
+  frequencies_table <- lapply(1:4, function(day) {
+    generate_freq_famsize_table(famsizes_table[[day]]$logfamsize)
+  })
+  if(is.null(x_axis_max)){
+    x_axis_max <- c(max(frequencies_table[[1]]$logfamsize, frequencies_table[[3]]$logfamsize) + 1,
+                    max(frequencies_table[[2]]$logfamsize, frequencies_table[[4]]$logfamsize) + 1,
+                    max(frequencies_table[[1]]$logfamsize, frequencies_table[[3]]$logfamsize) + 1,
+                    max(frequencies_table[[2]]$logfamsize, frequencies_table[[4]]$logfamsize) + 1)
+  }
+  if(is.null(y_axis_max)){
+    y_axis_max <- c(max(frequencies_table[[1]]$freq, frequencies_table[[2]]$freq) + 0.05, 
+                    max(frequencies_table[[1]]$freq, frequencies_table[[2]]$freq) + 0.05,
+                    max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq) + 0.05,
+                    max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq) + 0.05)
+  }
+  
+  plots <- lapply(5:8, function(day) {
+    plot_famsize_distribution(frequencies_table[[day-4]], day, 
+                              x_axis_max = x_axis_max[day-4], y_axis_max = y_axis_max[day-4])
+  })
+  
+  plots_two_ylabel <- list(plots[[1]] + theme(axis.text.x = element_blank(), axis.title.x = element_blank(),
+                                              plot.margin = margin(t = 0.5, r = 0, b = 0, l = 0, unit = "cm")), 
+                           plots[[2]] + theme(axis.text.x = element_blank(), axis.title.x = element_blank(), 
+                                              axis.text.y = element_blank(), axis.title.y = element_blank(),
+                                              plot.margin = margin(t = 0.5, r = 0, b = 0, l = 0, unit = "cm")),
+                           plots[[3]] + theme(plot.margin = margin(t = 0.2, r = 0, b = 0.5, l = 0, unit = "cm")), 
+                           plots[[4]] + theme(axis.text.y = element_blank(), axis.title.y = element_blank(),
+                                              plot.margin = margin(t = 0.2, r = 0, b = 0.5, l = 0, unit = "cm")))
+  
+  gt <- arrangeGrob(grobs = plots_two_ylabel, ncol = 2, widths = c(4.8, 4), heights = c(2, 2.5))
+  plot <- as_ggplot(gt) +                                # transform to a ggplot
+    draw_plot_label(label = c("A - day 5", "B - day 6", "C - day 7", "D - day 8"), size = 12,
+                    x = c(0.04, 0.515, 0.04, 0.515), y = c(0.98, 0.98, 0.55, 0.55))
+  
+  return(plot)
+}
+
 
 #-------------------------------------------------------------------------------

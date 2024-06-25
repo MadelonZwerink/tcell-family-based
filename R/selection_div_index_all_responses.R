@@ -2,6 +2,7 @@
 
 seed <- 4321
 families = 500
+n = 100
 
 bp_rule <- 'runif(1, min = 0, max = 3.5)'
 dp_rule <- 0.5 #default
@@ -61,7 +62,7 @@ sum_cells <- data.frame(div_index = seq(0, n-1),
 
 #-------------------------------------------------------------------------------
 
-sum_cells_prim <- generate_div_index_df(prim_parameters)
+sum_cells_prim_2 <- generate_div_index_df(prim_parameters)
 sum_cells_sec <- generate_div_index_df(sec_parameters)
 sum_cells_ter <- generate_div_index_df(ter_parameters)
 
@@ -69,15 +70,15 @@ sum_cells_ter <- generate_div_index_df(ter_parameters)
 # Primary response
 #-------------------------------------------------------------------------------
 
-ggplot(sum_cells_prim, aes(x = div_index)) + 
+ggplot(sum_cells_prim_2, aes(x = div_index)) + 
   geom_bar(aes(y = log10(nr_cells)), stat = "identity") +
   labs(title = "Total number of cells for each division index",
        x = "Division index",
        y = "log10(number of cells)") +
   theme_clean() + th + xlim(0, 50)
 
-ggplot(sum_cells_prim, aes(x = div_index)) + 
-  geom_bar(aes(y = fraction, group), stat = "identity") +
+ggplot(sum_index_prim, aes(x = div_index)) + 
+  geom_bar(aes(y = fraction), stat = "identity") +
   labs(title = "Fraction of cells at each division index",
        subtitle = "Corrected for increase in cell numbers with each division",
        x = "Division index",
@@ -132,8 +133,6 @@ ggplot(sum_cells_ter, aes(x = div_index)) +
   theme_clean() + th + xlim(0, 50)
 
 #-------------------------------------------------------------------------------
-
-
 
 exp_divs_sec <- sec_parameters$bp * (sec_parameters$t_run - (sec_parameters$t_burst * sec_parameters$nr_burst_divs))
 div_index_sec <- data.frame(matrix(nrow = nrow(sec_parameters), ncol = n))
