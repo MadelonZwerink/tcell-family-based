@@ -125,4 +125,23 @@ panel_plots_prob
 selected_Q_cells_long <- wide_to_long(selected_Q_cells, "Q_cells")
 selected_Q_cells_long <- selected_Q_cells_long[selected_Q_cells_long$Q_cells != 0,]
 
-index_multiple_Q <- which(selected_Q_cells_long$Q_cells > 1)
+selected_Q_cells_processed <- selected_Q_cells_long %>%
+  uncount(Q_cells)
+selected_Q_cells_processed$cell_type <- "Q"
+colnames(selected_Q_cells_processed) <- c("fam_nr", "div_counter", "cell_type")
+
+sec_parameters <- pick_parameters(response_nr = 2,
+                                  prev_parameters = selected_Q_cells_processed,
+                                  bp_rule = bp_rule,
+                                  dp_rule = dp_rule,
+                                  rq_rule = rq_rule,
+                                  t_start_dist = t_start_dist,
+                                  t_run_rule = t_run_rule,
+                                  nr_burst_divs = nr_burst_divs,
+                                  quality_dist = quality_dist,
+                                  ASD = ASD,
+                                  burst_time = burst_time,
+                                  max_run_time = max_run_time,
+                                  min_t_start = min_t_start)
+
+

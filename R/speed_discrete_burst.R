@@ -239,10 +239,17 @@ get_famsize <- function(parameters, timepoint) {
   return(famsize)
 }
 
+#-------------------------------------------------------------------------------
+
 # Optimized solve_function using apply
-solve_function <- function(parameters, min_time, max_time, interval) {
+solve_function <- function(parameters, min_time, max_time, interval,
+                           model = "classic", recruited_cells = NULL) {
   timepoints <- seq(min_time, max_time, by = interval)
   num_timepoints <- length(timepoints)
+  
+  if(!is.null(recruited_cells)){
+    recruited_cells <- rowSums(recruited_cells[, -1])
+  }
   
   # Create a data frame with pre-filled columns
   P_total <- data.frame(matrix(0, nrow = nrow(parameters), ncol = num_timepoints + 3))
@@ -274,7 +281,12 @@ solve_function <- function(parameters, min_time, max_time, interval) {
         exp(params$bp * (timepoint - time_start_prolif))
       } else {
         max_cells <- exp(params$bp * (time_stop_prolif - time_start_prolif))
-        max_cells * exp(-params$dp * (timepoint - time_stop_prolif))
+        if(model == "classic"){
+          max_cells * exp(-params$dp * (timepoint - time_stop_prolif))
+        } else if(model == "noQ"){
+          recruited_cells[cell_index] + 
+            ((max_cells - recruited_cells[cell_index]) * exp(-params$dp * (timepoint - time_stop_prolif)))
+        }
       }
     })
   }
@@ -348,8 +360,10 @@ solve_function_old <- function(parameters, min_time, max_time, interval) {
 
 #-------------------------------------------------------------------------------
 
-generate_total_response_table <- function(parameters, min_time, max_time, interval){
-  famsizes_table <- solve_function(parameters, min_time, max_time, interval)
+generate_total_response_table <- function(parameters, min_time, max_time, interval, 
+                                          model = "classic", recruited_cells = NULL){
+  famsizes_table <- solve_function(parameters, min_time, max_time, interval, 
+                                   model = model, recruited_cells = recruited_cells)
   timepoints <- seq(min_time, max_time, interval)
   num_timepoints <- length(timepoints)
   total_resp <- apply(famsizes_table[,4 : (num_timepoints + 3)], 2, FUN = sum)
@@ -391,11 +405,15 @@ plot_response <- function(response){
 #-------------------------------------------------------------------------------
 
 generate_max_fam_table <- function(prim_parameters, 
-                                  sec_parameters, 
-                                  ter_parameters, 
-                                  type = c("time", "max"), 
-                                  timepoint = NULL, 
-                                  remove_zeroes = FALSE) {
+                                   sec_parameters, 
+                                   ter_parameters, 
+                                   type = c("time", "max"), 
+                                   timepoint = NULL, 
+                                   remove_zeroes = FALSE,
+                                   model = "classic",
+                                   recruited_cells_prim = NULL,
+                                   recruited_cells_sec = NULL,
+                                   recruited_cells_ter = NULL) {
   
   nr_of_families <- max(prim_parameters$fam_nr)
   max_prim <- rep(0, nr_of_families)
@@ -426,22 +444,33 @@ generate_max_fam_table <- function(prim_parameters,
   }
   
   nr_burst_divs <- prim_parameters$nr_burst_divs[match(1:nr_of_families, prim_parameters$fam_nr)]
-  Q_cells <- prim_parameters %>% group_by(fam_nr) %>%
-    summarize(Q_count = sum(cell_type == "Q"))
-  Q_cells_sec <- sec_parameters %>% group_by(fam_nr) %>%
-    summarize(Q_count = sum(cell_type == "Q"))
-  Q_cells_ter <- ter_parameters %>% group_by(fam_nr) %>%
-    summarize(Q_count = sum(cell_type == "Q"))
+  
+  if(model == "classic"){
+    Q_cells <- prim_parameters %>% group_by(fam_nr) %>%
+      summarize(Q_cells = sum(cell_type == "Q"))
+    Q_cells_sec <- sec_parameters %>% group_by(fam_nr) %>%
+      summarize(Q_cells = sum(cell_type == "Q"))
+    Q_cells_ter <- ter_parameters %>% group_by(fam_nr) %>%
+      summarize(Q_cells = sum(cell_type == "Q"))
+  } else if(model == "noQ"){
+    print("No Q model")
+    if (is.null(recruited_cells_prim) | is.null(recruited_cells_sec) | is.null(recruited_cells_ter)){
+      warning("Please provide the dataframes with recruited cells when working with the noQ model")}
+    Q_cells <- get_recruited_cells_per_fam(recruited_cells_prim)
+    Q_cells_sec <- get_recruited_cells_per_fam(recruited_cells_sec)
+    Q_cells_ter <- get_recruited_cells_per_fam(recruited_cells_ter)
+  }
   
   fill_missing_families <- function(Q_cells){
     missing_fams <- setdiff(seq(nr_of_families), Q_cells$fam_nr)
     remaining_values <- data.frame(fam_nr = as.numeric(missing_fams), 
-                                   Q_count = rep(0, length(missing_fams)))
+                                   Q_cells = rep(0, length(missing_fams)))
     Q_cells <- rbind(Q_cells, remaining_values) 
     Q_cells <- Q_cells[order(Q_cells$fam_nr),]
     return(Q_cells)
   }
   
+  Q_cells <- fill_missing_families(Q_cells)
   Q_cells_sec <- fill_missing_families(Q_cells_sec)
   Q_cells_ter <- fill_missing_families(Q_cells_ter)
   
@@ -451,9 +480,9 @@ generate_max_fam_table <- function(prim_parameters,
     cells_sec = max_sec,
     cells_ter = max_ter,
     nr_burst_divs = factor(nr_burst_divs),
-    Q_cells = Q_cells$Q_count,
-    Q_cells_sec = Q_cells_sec$Q_count,
-    Q_cells_ter = Q_cells_ter$Q_count
+    Q_cells = Q_cells$Q_cells,
+    Q_cells_sec = Q_cells_sec$Q_cells,
+    Q_cells_ter = Q_cells_ter$Q_cells
   )
   if (remove_zeroes == TRUE) {
     max_cells <- max_cells[max_cells$cells_ter > 0, ]
@@ -829,6 +858,37 @@ generate_Q_famsize_table <- function(parameters) {
 
 #-------------------------------------------------------------------------------
 
+get_recruited_cells_per_fam <- function(recruited_cells){
+  recruited_cells_per_fam <- recruited_cells %>%
+    group_by(fam_nr) %>%
+    summarise(Q_cells = n())
+  return(recruited_cells_per_fam)
+}
+
+#-------------------------------------------------------------------------------
+
+generate_recruited_famsize_table <- function(parameters, recruited_cells){
+  recruited_cells_per_fam <- get_recruited_cells_per_fam(recruited_cells)
+  
+  max_famsizes <- get_max_famsize(parameters)
+  famsize_df <- as_tibble(data.frame(fam_nr = as.factor(parameters$fam_nr), 
+                                     nr_burst_divs = parameters$nr_burst_divs, 
+                                     max_famsize = max_famsizes))
+  famsize_df <- famsize_df %>%
+    group_by(fam_nr) %>%
+    summarise(famsize = sum(max_famsize),
+              nr_burst_divs = first(nr_burst_divs))
+  
+  famsize_df <- merge(famsize_df, recruited_cells_per_fam, by = "fam_nr", all.x = T)
+  famsize_df[is.na(famsize_df)] <- 0
+  
+  famsize_df$log_famsize <- log10(famsize_df$famsize)
+  
+  return(famsize_df)
+}
+
+#-------------------------------------------------------------------------------
+
 get_Q_famsize_stats <- function(max_fam_table){
   prim_cor <- cor.test(max_fam_table$cells_prim, max_fam_table$Q_cells, method = "spearman")
   sec_cor <- cor.test(max_fam_table$cells_sec, max_fam_table$Q_cells, method = "spearman")
@@ -1014,17 +1074,6 @@ get_legend<-function(myggplot){
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
-#-------------------------------------------------------------------------------
-
-wide_to_long <- function(solve_table) {
-  solve_table %<>% pivot_longer(cols = 4:ncol(solve_table), 
-                                names_to = "time", 
-                                values_to = "cells")
-  solve_table$time <- as.numeric(solve_table$time)
-  return(solve_table)
-}
-
-
 #-------------------------------------------------------------------------------
 
 SSR_famsize_dist <- function(prim_parameters) {

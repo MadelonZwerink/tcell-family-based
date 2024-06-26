@@ -113,11 +113,11 @@ colnames(Q_famsize_stats) <- c("prim_cor", "sec_cor", "ter_cor",
 processed_Q_famsize_stats <- get_processed_stats(Q_famsize_stats)
 #-------------------------------------------------------------------------------
 
-sink(file = paste0(folder, run_name, "_output.txt"))
-
 output_data <- c("processed_total_resp_stats", "processed_max_fam_stats", 
                  "processed_famsizes_freq_stats", "processed_famsize_stats", 
                  "processed_Q_famsize_stats")
+
+sink(file = paste0(folder, run_name, "_output.txt"))
 
 for(output_stats in output_data){
   print(eval(output_stats))

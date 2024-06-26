@@ -203,7 +203,7 @@ get_processed_famsize_stats <- function(famsize_stats){
 
 #This function returns mean, sd and lower and upper bound of 95% CI for 
 #dataframes in which each column is a variable and each row an observation
-get_processed_stats <- function(max_fam_stats_long){
+get_processed_stats <- function(max_fam_stats_long, scientific = F){
   means <- colMeans(max_fam_stats_long)
   sd <- apply(max_fam_stats_long, 2, sd)
   names(sd) <- paste0("sd_", names(sd))
@@ -212,6 +212,14 @@ get_processed_stats <- function(max_fam_stats_long){
   names(lower_bound) <- paste0("lb_", names(lower_bound))
   upper_bound <- means + margin_of_error
   names(upper_bound) <- paste0("ub_", names(upper_bound))
+  
+  if(scientific == F){
+    for(output_stats in c("means", "sd", "lower_bound", "upper_bound")){
+      df <- get(output_stats)  # Retrieve the data frame by its name
+      df <- as.numeric(format(round(df, digits = 4), scientific = FALSE))  # Round and format
+      assign(output_stats, df)  # Assign the modified data frame back to the original name
+    }
+  }
   return(data.frame("means" = c(means), "sd" = c(sd), 
                     "lower_bound" = c(lower_bound), "upper_bound" = c(upper_bound)))
 }
