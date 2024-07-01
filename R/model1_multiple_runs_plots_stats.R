@@ -104,8 +104,48 @@ processed_famsize_stats <- lapply(famsizes_stats, get_processed_stats)
 #-------------------------------------------------------------------------------
 # Maxfam stats
 max_fam_stats_long <- convert_cols_to_numeric(max_fam_stats_long)
+
+max_fam_boxplot_cor_data <- max_fam_stats_long %>%
+  select(cor_prim_sec, cor_sec_ter) %>%
+  pivot_longer(cols = all_of(c("cor_prim_sec", "cor_sec_ter")),
+               names_to = "metric",
+               values_to = "value")
+
+max_fam_boxplot_pvalue_data <- max_fam_stats_long %>%
+  select(p_value_prim_sec, p_value_sec_ter) %>%
+  mutate(p_value_sec_ter = p_value_sec_ter * 10^14) %>%
+  pivot_longer(cols = all_of(c("p_value_prim_sec", "p_value_sec_ter")),
+               names_to = "metric",
+               values_to = "value")
+  
+boxplot_correlations <- ggplot(max_fam_boxplot_cor_data) + 
+  geom_boxplot(aes(y = value, x = metric)) +
+  theme_clean() + th +
+  labs(
+    y = "Spearman r",
+    x = element_blank()) +
+  scale_x_discrete(labels = c("prim vs sec", "sec vs ter"))
+  
+coeff <- 10^14
+boxplot_p_values <- ggplot(max_fam_boxplot_pvalue_data) + 
+  geom_boxplot(aes(y = value, x = metric)) +
+  theme_clean() + th +
+  labs(
+    y = "P-value",
+    x = element_blank()) +
+  scale_x_discrete(labels = c("prim vs sec", "sec vs ter"))  +
+  scale_y_continuous(
+    # Features of the first axis
+    name = "P-value",
+    # Add a second axis and specify its features
+    sec.axis = sec_axis(trans=~./coeff, name="P-value", 
+                        breaks = c(0, 5*10^-15, 10^-14))
+  )
+
 processed_max_fam_stats <- get_processed_stats(max_fam_stats_long)
 
+#-------------------------------------------------------------------------------
+# Q famsize stats
 Q_famsize_stats <- sapply(max_fam_table, get_Q_famsize_stats_multi)
 Q_famsize_stats <- as.data.frame(t(Q_famsize_stats))
 colnames(Q_famsize_stats) <- c("prim_cor", "sec_cor", "ter_cor", 
@@ -125,3 +165,13 @@ for(output_stats in output_data){
 }
 
 sink(file = NULL)
+
+ggsave(paste0(folder, run_name, "_famsize_correlations_boxplot.jpg"), 
+       plot = boxplot_correlations, 
+       width = 4, height = 6, units = "in")
+
+ggsave(paste0(folder, run_name, "_famsize_cor_pvalues_boxplot.jpg"), 
+       plot = boxplot_p_values, 
+       width = 4, height = 6, units = "in")
+
+

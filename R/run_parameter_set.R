@@ -53,6 +53,8 @@ ter_parameters <- pick_parameters(response_nr = 3,
 print("Calculating family sizes and other data...")
 
 df_famsizes <- generate_famsize_table_multidays(prim_parameters)
+#df_famsizes_sec  <- generate_famsize_table_multidays(sec_parameters)
+#df_famsizes_ter <- generate_famsize_table_multidays(ter_parameters)
 
 Q_famsize_table <- generate_Q_famsize_table(prim_parameters)
 
@@ -80,11 +82,10 @@ print("Making plots...")
 
 response_plot <- plot_response(total_resp)
 
-famsize_dist_h_plot <- plot_h_grid_famsize_dist(df_famsizes)
-
 famsize_dist_v_plot <- plot_v_grid_famsize_dist(df_famsizes)
 
-famsize_dist_sq_plot <- plot_sq_grid_famsize_dist(df_famsizes)
+#sec_famsize_dist_plot <- plot_v_grid_famsize_dist(df_famsizes_sec)
+#ter_famsize_dist_plot <- plot_v_grid_famsize_dist(df_famsizes_ter)
 
 Q_famsize_shape_plot <- plot_Q_famsize(Q_famsize_table, label_burst_divs = "shape")
 Q_famsize_col_plot <- plot_Q_famsize(Q_famsize_table, label_burst_divs = "col", show_legend = T, linear_model = F)
@@ -204,17 +205,11 @@ ggsave(paste0(folder, run_name, "_panel_plot_combi.pdf"), plot = panel_plots_com
 ggsave(paste0(folder, run_name, "_panel_plot_combi.jpg"), plot = panel_plots_combi, 
        width = 6.5, height = 6.5, units = "in")
 
-ggsave(paste0(folder, run_name, "_famsize_dist_h_plot.pdf"), plot = famsize_dist_h_plot, 
-       width = 2500, height = 500, units = "px")
-
 ggsave(paste0(folder, run_name, "_famsize_dist_v_plot.pdf"), plot = famsize_dist_v_plot, 
        width = 5, height = 8, units = "in")
 
 ggsave(paste0(folder, run_name, "_famsize_dist_v_plot.jpg"), plot = famsize_dist_v_plot, 
        width = 5, height = 8, units = "in")
-
-ggsave(paste0(folder, run_name, "_famsize_dist_sq_plot.pdf"), plot = famsize_dist_sq_plot, 
-       width = 2500, height = 2200, units = "px")
 
 ggsave(paste0(folder, run_name, "_Q_famsize.pdf"), plot = Q_famsize_plot, 
        width = 2500, height = 1800, units = "px")

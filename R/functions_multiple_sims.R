@@ -105,7 +105,7 @@ get_famsize_stats_multidays_multi <- function(df_famsizes){
   # The sapply function puts each observation in a separate column, but I would 
   # like a long format where each row is a simulation
   famsizes_stats_long <- lapply(1:4, function(day_index) {
-    rownames(famsizes_stats[[day_index]]) <- c("mean", "median","sd")
+    rownames(famsizes_stats[[day_index]]) <- c("mean", "median","sd", "disparity")
     colnames(famsizes_stats[[day_index]]) <- seq(ncol(famsizes_stats[[day_index]]))
     as.data.frame(t(famsizes_stats[[day_index]]))
   })
@@ -115,6 +115,8 @@ get_famsize_stats_multidays_multi <- function(df_famsizes){
   return(famsizes_stats_long)
 }
 
+# The function below returns a dataframe in which each row is a simulation and
+# each column contains a different logfamsize bin
 generate_freq_famsize_table_multidays_multi <- function(df_famsizes){
   famsizes_freq <<- lapply(1:4, function(day_index) {
     sapply(seq_along(df_famsizes), function(sim_index) {

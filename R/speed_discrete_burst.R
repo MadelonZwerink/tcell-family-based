@@ -645,6 +645,7 @@ generate_famsize_table <- function(parameters, timepoint = NULL) {
   df_famsizes <- aggregate(famsize ~ fam_nr, data = df_famsizes, sum) 
   df_famsizes <- df_famsizes[order(df_famsizes$famsize, decreasing = TRUE), ]
   df_famsizes$logfamsize <- log2(df_famsizes$famsize)
+  df_famsizes$fraction <- df_famsizes$famsize / sum(df_famsizes$famsize)
   
   return(df_famsizes)
 }
@@ -655,8 +656,10 @@ get_famsize_stats <- function(df_famsizes){
   stat_mean <- round(mean(df_famsizes$famsize[df_famsizes$famsize > 1]), digits = 0)
   stat_sd <- round(sd(df_famsizes$famsize[df_famsizes$famsize > 1]), digits = 3)
   stat_median <- round(median(df_famsizes$famsize[df_famsizes$famsize > 1]), digits = 0)
+  top_5perc_families <- nrow(df_famsizes) * 0.05
+  stat_disparity <- round(sum(df_famsizes$fraction[1:top_5perc_families]), digits = 3)
   
-  return(c(stat_mean, stat_median, stat_sd))
+  return(c(stat_mean, stat_median, stat_sd, stat_disparity))
 }
 
 #-------------------------------------------------------------------------------
@@ -728,7 +731,7 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = FAL
   
   plot <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
     geom_bar(aes(y = freq), stat = "identity", fill = "#9f2a63") +
-    geom_errorbar(aes(ymin = lower_bound, ymax = upper_bound), width = 0.2) +
+    geom_errorbar(aes(ymin = freq - sd, ymax = freq + sd), width = 0.2) +
     geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), 
                color = "#9c9797", size = 1.5, shape = 19) + 
     labs(title = paste("Day", timepoint),
@@ -794,7 +797,7 @@ get_famsize_stats_multidays <- function(famsizes_table){
     c(day, get_famsize_stats(famsizes_table[[day-4]]))
   })
   famsizes_stats <- data.frame(do.call(rbind, famsizes_stats))
-  colnames(famsizes_stats) <- c("timepoint", "mean", "median")
+  colnames(famsizes_stats) <- c("timepoint", "mean", "median", "sd", "disparity")
   
   return(famsizes_stats)
 }
@@ -817,7 +820,7 @@ plot_v_grid_famsize_dist <- function(famsizes_table = NULL, frequencies_table = 
   if (multi_plot) {
     for (i in seq(4)) {
       frequencies_table[[i]]$freq <- frequencies_table[[i]]$means
-      frequencies_table[[i]]$logfamsize <- as.numeric(frequencies_table[[i]]$logfamsize)
+      frequencies_table[[i]]$logfamsize <- seq(0, nrow(frequencies_table[[i]]) - 1)
     }
   }
   

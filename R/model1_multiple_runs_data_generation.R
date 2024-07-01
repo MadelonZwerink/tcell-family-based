@@ -11,10 +11,9 @@ source("./R/functions_multiple_sims.R")
 # Define parameters
 nr_sims <- 100
 folder <- "./results/model1/"
-run_name <- "st3_multiple_"
+run_name <- "m1_multiple_"
 seed <- 4321
 families <- 500
-
 set.seed(seed)
 
 bp_rule <- 'runif(1, min = 0, max = 3.5)'
