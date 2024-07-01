@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 
 #-------------------------------------------------------------------------------
 
@@ -177,16 +178,16 @@ print("Saving plots and stats...")
 ggsave(paste0(folder, run_name, "_panel_plot_combi.pdf"), plot = panel_plots_combi, 
        width = 6.5, height = 6.5, units = "in")
 
-ggsave(paste0(folder, run_name, "_panel_plot_combi.jpg"), plot = panel_plots_combi, 
+ggsave(paste0(folder, run_name, "_panel_plot_combi.png"), plot = panel_plots_combi, 
        width = 6.5, height = 6.5, units = "in")
 
 ggsave(paste0(folder, run_name, "_famsize_dist_v_plot.pdf"), plot = famsize_dist_v_plot, 
        width = 5, height = 8, units = "in")
 
-ggsave(paste0(folder, run_name, "_famsize_dist_v_plot.jpg"), plot = famsize_dist_v_plot, 
+ggsave(paste0(folder, run_name, "_famsize_dist_v_plot.png"), plot = famsize_dist_v_plot, 
        width = 5, height = 8, units = "in")
 
-ggsave(paste0(folder, run_name, "_Q_famsize.pdf"), plot = Q_famsize_plot, 
+ggsave(paste0(folder, run_name, "_Q_famsize.pdf"), plot = Q_famsize_col_plot, 
        width = 2500, height = 1800, units = "px")
 
 ggsave(paste0(folder, run_name, "_Q_famsize_boxplot.pdf"), plot = Q_famsize_all_resp_plot, 

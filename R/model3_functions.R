@@ -1,3 +1,5 @@
+#!/usr/bin/env Rscript
+
 generate_recruited_cells <- function(div_cells, 
                                      recruitment_mean = 5,
                                      recruitment_sd = 2){

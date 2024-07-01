@@ -1,8 +1,16 @@
+#!/usr/bin/env Rscript
+
+if(Sys.info()[[4]]=="LAPTOP-3RJSLMKV") {
+  print("Working from R-project")
+  setwd("~/BiBC/Major_internship/tcell-family-based")
+} else {setwd('~/Documents')
+  .libPaths("./R")}
 
 folder <- "./results/model3/"
 run_name <- "2_mean6_sd2"
 seed <- 4321
 families = 500
+n <- 100
 
 bp_rule <- 'runif(1, min = 0, max = 3.5)'
 dp_rule <- 0.5 #default

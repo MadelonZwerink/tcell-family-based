@@ -679,29 +679,55 @@ generate_freq_famsize_table <- function(logfamsizes){
 
 #-------------------------------------------------------------------------------
 
-plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = F, 
+plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = FALSE, 
                                       x_axis_max = NULL, y_axis_max = NULL, 
-                                      multi_plot = F){
-  if(multi_plot == T){
+                                      multi_plot = FALSE){
+  if (multi_plot) {
     freq_famsizes$freq <- freq_famsizes$means
-    freq_famsizes$logfamsize <- c(0, seq(nrow(freq_famsizes) - 1))
+    freq_famsizes$logfamsize <- as.numeric(c(0, seq(nrow(freq_famsizes) - 1)))
   } else {
     freq_famsizes$lower_bound <- NA
     freq_famsizes$upper_bound <- NA
   }
-  if(timepoint %in% c(5,6,7,8)){
-    expected_famsizes <- get(paste0("day", timepoint))}
-  else{expected_famsizes <- data.frame(Number_2log = 0, Frequency = 0)}
-  # To make sure the function doesnt break when the timepoint is not 5,6,7 or 8
   
-  if(is.null(x_axis_max)) {
-    x_axis_max <- max(freq_famsizes$logfamsize, expected_famsizes$Number_2log) + 1}
-  if(is.null(y_axis_max)) {
-    y_axis_max <- max(freq_famsizes$Freq, expected_famsizes$Frequency) + 0.05}
+  if (!is.data.frame(freq_famsizes)) {
+    stop("freq_famsizes must be a data frame")
+  }
+  
+  if (timepoint %in% c(5, 6, 7, 8)) {
+    expected_famsizes <- get(paste0("day", timepoint))
+  } else {
+    expected_famsizes <- data.frame(Number_2log = 0, Frequency = 0)
+  }
+  
+  expected_famsizes$Number_2log <- as.numeric(expected_famsizes$Number_2log)
+  expected_famsizes$Frequency <- as.numeric(expected_famsizes$Frequency)
+  
+  freq_famsizes$logfamsize <- as.numeric(freq_famsizes$logfamsize)
+  freq_famsizes$freq <- as.numeric(freq_famsizes$freq)
+  freq_famsizes$lower_bound <- as.numeric(freq_famsizes$lower_bound)
+  freq_famsizes$upper_bound <- as.numeric(freq_famsizes$upper_bound)
+  
+  if (is.null(x_axis_max)) {
+    x_axis_max <- max(freq_famsizes$logfamsize, expected_famsizes$Number_2log, na.rm = TRUE) + 1
+  }
+  
+  if (is.null(y_axis_max)) {
+    y_axis_max <- max(freq_famsizes$freq, expected_famsizes$Frequency, na.rm = TRUE) + 0.05
+  }
+  
+  if (max(freq_famsizes$logfamsize) < x_axis_max){
+    nr_rows <- x_axis_max - max(freq_famsizes$logfamsize)
+    bins <- seq(x_axis_max)
+    addition <- data.frame(logfamsize = tail(bins, nr_rows), 
+                           freq = rep(0, nr_rows),
+                           lower_bound = rep(NA, nr_rows),
+                           upper_bound = rep(NA, nr_rows))
+    freq_famsizes <- rbind(freq_famsizes, addition)
+  }
   
   plot <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
-    geom_bar(aes(y = freq), 
-             stat = "identity", fill = "#9f2a63") +
+    geom_bar(aes(y = freq), stat = "identity", fill = "#9f2a63") +
     geom_errorbar(aes(ymin = lower_bound, ymax = upper_bound), width = 0.2) +
     geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), 
                color = "#9c9797", size = 1.5, shape = 19) + 
@@ -712,12 +738,10 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = F,
     th +
     theme(plot.margin = margin(t = 0.7, r = 0, b = 0.5, l = 0, unit = "cm"),
           axis.text.x = element_text(face = NULL, size = 7.5)) +
-    coord_cartesian(ylim = c(0, y_axis_max), xlim = c(0, x_axis_max)) + 
-    scale_x_continuous(breaks = 0:x_axis_max, 
-                       guide = guide_axis(angle = 60)) +
-    scale_y_continuous(labels = label_number(accuracy = 0.01))
+    scale_x_continuous(breaks = 0:x_axis_max, guide = guide_axis(angle = 60)) +
+    scale_y_continuous(labels = label_number(accuracy = 0.01)) + ylim(0, y_axis_max)
   
-  if (show_title == F) {
+  if (!show_title) {
     plot <- plot + labs(title = NULL, subtitle = NULL)
   }
   
@@ -789,41 +813,63 @@ generate_freq_famsize_table_multidays <- function(famsizes_table){
 
 plot_v_grid_famsize_dist <- function(famsizes_table = NULL, frequencies_table = NULL, 
                                      x_axis_max = NULL, y_axis_max = NULL, 
-                                     multi_plot = F){
-  if(multi_plot == T){
-    for(i in seq(4)){
+                                     multi_plot = FALSE){
+  if (multi_plot) {
+    for (i in seq(4)) {
       frequencies_table[[i]]$freq <- frequencies_table[[i]]$means
+      frequencies_table[[i]]$logfamsize <- as.numeric(frequencies_table[[i]]$logfamsize)
     }
   }
-  if(is.null(frequencies_table) && !is.null(famsizes_table)){
+  
+  if (is.null(frequencies_table) && !is.null(famsizes_table)) {
     frequencies_table <- generate_freq_famsize_table_multidays(famsizes_table)
-  } else{frequencies_table <- frequencies_table}
-  if(is.null(x_axis_max)) {
-    x_axis_max <- rep(max(frequencies_table[[4]]$logfamsize), 4) + 1
   }
-  if(is.null(y_axis_max)){
-    y_axis_max <- c(max(frequencies_table[[1]]$freq, frequencies_table[[2]]$freq) + 0.05, 
-                    max(frequencies_table[[2]]$freq, frequencies_table[[2]]$freq) + 0.05,
-                    max(frequencies_table[[3]]$freq, frequencies_table[[4]]$freq) + 0.05,
-                    max(frequencies_table[[4]]$freq, frequencies_table[[4]]$freq) + 0.05)
+  
+  if (is.null(frequencies_table)) {
+    stop("frequencies_table is NULL. Check the generate_freq_famsize_table_multidays function.")
   }
-  plots <- lapply(5:8, function(day) {
-    plot_famsize_distribution(frequencies_table[[day-4]], day, 
-                              x_axis_max = x_axis_max[day-4], 
-                              y_axis_max = y_axis_max[day-4],
+  
+  if (!all(sapply(frequencies_table, is.data.frame))) {
+    stop("frequencies_table must be a list of data frames")
+  }
+  
+  # Determine x_axis_max for all plots
+  if (is.null(x_axis_max)) {
+    x_axis_max <- max(sapply(frequencies_table, function(df) max(as.numeric(df$logfamsize), na.rm = TRUE))) + 1
+    x_axis_max <- rep(x_axis_max, 4)  # Replicate for each plot
+  }
+  
+  # Determine y_axis_max for all plots
+  if (is.null(y_axis_max)) {
+    max_freqs <- sapply(frequencies_table, function(df) max(as.numeric(df$freq), na.rm = TRUE))
+    y_axis_max <- c(max_freqs[1], max_freqs[2], max_freqs[3], max_freqs[4])  + 0.05 # Adjust for the last plot
+  }
+  
+  plots <- lapply(1:4, function(day) {
+    plot_famsize_distribution(frequencies_table[[day]], day + 4, 
+                              x_axis_max = x_axis_max[day], 
+                              y_axis_max = y_axis_max[day],
                               multi_plot = multi_plot)
   })
+  
   plots_no_xlabel <- lapply(1:3, function(day) {
     plots[[day]] + theme(axis.title.x = element_blank(),
                          plot.margin = margin(t = 0.4, r = 0.5, b = 0, l = 0.5, unit = "cm"))
   })
+  
   plots_one_xlabel <- list(plots_no_xlabel[[1]], 
                            plots_no_xlabel[[2]], 
                            plots_no_xlabel[[3]], 
-                           plots[[4]]+ theme(plot.margin = margin(t = 0.4, r = 0.5, b = 0.2, l = 0.5, unit = "cm")))
+                           plots[[4]] + theme(plot.margin = margin(t = 0.4, r = 0.5, b = 0.2, l = 0.5, unit = "cm")))
   
-  gt <- arrangeGrob(grobs = plots_one_xlabel, nrow = 4, heights = c(4,4,4,4.6))
-  plot <- as_ggplot(gt) +                                # transform to a ggplot
+  plots[[4]] <- plots[[4]] + theme(plot.margin = margin(t = 0.4, r = 0.5, b = 0.2, l = 0.5, unit = "cm"))
+  
+  gt <- arrangeGrob(grobs = list(plots_no_xlabel[[1]], 
+                                 plots_no_xlabel[[2]], 
+                                 plots_no_xlabel[[3]], 
+                                 plots[[4]]), nrow = 4, heights = c(4,4,4,4.6))
+  
+  plot <- as_ggplot(gt) + 
     draw_plot_label(label = c("A - d5", 
                               "B - d6", 
                               "C - d7", 
@@ -832,7 +878,6 @@ plot_v_grid_famsize_dist <- function(famsizes_table = NULL, frequencies_table = 
   
   return(plot)
 }
-
 # _______________________________________________________________________________
 # This function plots the size of the family as a function of the number of Q cells that are formed
 
