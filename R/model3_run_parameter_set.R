@@ -119,7 +119,7 @@ print("Making plots...")
 
 response_plot <- plot_response(total_resp)
 
-famsize_dist_v_plot <- plot_v_grid_famsize_dist(df_famsizes)
+famsize_dist_v_plot <- plot_v_grid_famsize_dist(famsizes_table = df_famsizes)
 
 Q_famsize_col_plot <- plot_Q_famsize(Q_famsize_table, label_burst_divs = "col", show_legend = T, linear_model = F)
 
@@ -196,10 +196,10 @@ ggsave(paste0(folder, run_name, "_Q_famsize_boxplot.pdf"), plot = Q_famsize_all_
 ggsave(paste0(folder, run_name, "_Q_famsize_boxplot.png"), plot = Q_famsize_all_resp_plot, 
        width = 1950, height = 3093, units = "px")
 
-ggsave(paste0(folder, run_name, "_cor_prim_sec_plot.pdf"), plot = cor_prim_sec_plot, 
+ggsave(paste0(folder, run_name, "_cor_prim_sec_plot.pdf"), plot = cor_prim_sec_nrQ_plot, 
        width = 1500, height = 1300, units = "px")
 
-ggsave(paste0(folder, run_name, "_cor_sec_ter_plot.pdf"), plot = cor_sec_ter_plot, 
+ggsave(paste0(folder, run_name, "_cor_sec_ter_plot.pdf"), plot = cor_sec_ter_nrQ_plot, 
        width = 1500, height = 1300, units = "px")
 
 ggsave(paste0(folder, run_name, "_response.pdf"), plot = response_plot, 

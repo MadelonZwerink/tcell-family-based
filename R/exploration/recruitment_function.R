@@ -28,17 +28,19 @@ for (r in 1:nrow(div_cells_prim_rounded)){
 #-------------------------------------------------------------------------------
 # Now, we can select each cell with a certain probability depending on 
 # division index
-recruitment_mean <- 5
+recruitment_mean <- 6
 recruitment_sd <- 1
+n = 100
 
 recruitment_prob <- pnorm(0:n, mean = recruitment_mean, 
                           sd = recruitment_sd, lower.tail = FALSE)
 prob_df <- as.data.frame(cbind(div_index = seq(0,n), prob = recruitment_prob))
 plot_prob_dist <- ggplot(prob_df, aes(x = div_index, y = prob)) + geom_point() + xlim(0,25) +
+  theme_clean() + th +
   labs(x = "Division index",
-       y = "Recruitment probability") +
-  theme_clean() + th
-
+       y = "Recruitment probability",
+       title = paste("Mean:", recruitment_mean, "- SD:", recruitment_sd)) 
+plot_prob_dist
 #-------------------------------------------------------------------------------
 # Check the number of Q cells and the division index of Q cells for different 
 # recruitment probability distributions

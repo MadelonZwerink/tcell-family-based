@@ -9,7 +9,7 @@ if(Sys.info()[[4]]=="LAPTOP-3RJSLMKV") {
 
 packages <- c("tidyverse", "magrittr", "ggplot2", "purrr", "data.table", 
               "cowplot", "tibble", "ggthemes", "gridExtra", "patchwork",
-              "ggpubr", "scales", "ggtext", "dplyr")
+              "ggpubr", "scales", "ggtext", "dplyr", "ggsignif")
 
 # Function to install missing packages and log any errors
 install_if_missing <- function(p) {
@@ -91,6 +91,9 @@ pick_parameters <- function(
     response_nr = 1,
     prev_parameters = NULL,
     quality_dist = NULL,
+    quality_noise = FALSE,
+    q_noise_dist = NULL,
+    uniform_fam = FALSE,
     ASD = FALSE,
     burst_time = 0.15,
     max_run_time = 8,
@@ -124,8 +127,6 @@ pick_parameters <- function(
   
   if (!is.null(quality_dist)) {
     quality <- round(eval(parse(text = paste(quality_dist))), digits = 2)
-    # beta distribution: rbeta(nr_of_families, shape1 = 2, shape2 = 5)
-    # uniform distribution: runif(nr_of_families, 0, 1)
   } else {
     quality <- rep(NA, nr_of_families)
   }
@@ -134,7 +135,6 @@ pick_parameters <- function(
   cells <- 2^nr_burst_divs
   div_counter <- nr_burst_divs + prev_divs
   t_burst <- rep(burst_time, nr_of_families)
-
   
   for (i in seq(nr_of_families)) {
     # Make sure the families have the correct family number
@@ -155,21 +155,44 @@ pick_parameters <- function(
     }
     if(ASD == F) {
       cell_type <- rbinom(cells[i], 1, eval(parse(text = rq_rule)))
-     # if(sum(cell_type == 0)){cell_type[1] = 1}
       cell_type <- replace(cell_type, which(cell_type == 1), "P")
       cell_type <- replace(cell_type, which(cell_type == 0), "Q")
     } else if (ASD == T){
       cell_type <- c("Q", rep("P", cells[i] - 1))
+    }      
+    if (quality_noise == T){
+      if (is.null(q_noise_dist)){
+        quality_fam <- round(rnorm(cells[i], mean = quality[i], sd = 0.05), digits = 2)
+      } else if (!is.null(q_noise_dist)){
+        quality_fam <- round(eval(parse(text = q_noise_dist)), digits = 2)
+      }
+      if (uniform_fam == T){
+        warning("Can't combine noise on the quality with a uniform family")
+      }
+    } else {
+      quality_fam <- rep(quality[i], cells[i])
+    }
+    if (uniform_fam == T){
+      q <- quality[i]
+      #This makes all proliferating branches in families uniform
+      t_run_expr <- substitute(eval(parse(text = t_run_rule)))
+      t_run_val <- eval(t_run_expr)
+      t_run <- round(t_run_val, digits = 2)
+      bp_fam <- round(eval(parse(text = bp_rule)), digits = 2)
+      dp_fam <- round(eval(parse(text = dp_rule)), digits = 2)
     }
     
     for(cell in seq(cells[i])){
       # First define the expression and then evaluate the expression
       # If this is not included, the expression is only evaluated once,
       # leading to the same t_run for all (sub)families
-      t_run_expr <- substitute(eval(parse(text = t_run_rule)))
-      t_run_val <- eval(t_run_expr)
-      t_run <- round(t_run_val, digits = 2)
+      q <- quality_fam[cell]
       
+      if (uniform_fam == F){
+        t_run_expr <- substitute(eval(parse(text = t_run_rule)))
+        t_run_val <- eval(t_run_expr)
+        t_run <- round(t_run_val, digits = 2)
+      }
       # this is to make sure all proliferation stops at max_run_time
       if (is.null(max_run_time)) {
         t_correct <- 0
@@ -186,19 +209,24 @@ pick_parameters <- function(
           t_start[i] <- runif(1, min = min_t_start, max = (min_t_start + 1.5))
       }}
       
-      if (cell_type[cell] == "P"){
+      if (cell_type[cell] == "P" & uniform_fam == F){
         bp <- round(eval(parse(text = bp_rule)), digits = 2)
         dp <- round(eval(parse(text = dp_rule)), digits = 2)
       } else if (cell_type[cell] == "Q"){
         bp <- 0
         dp <- 0
+      } else if (uniform_fam == T){
+        #Still need to assign bp in this loop, otherwise bp and dp will be 0 
+        #after there has been a Q cell in the family
+        bp <- bp_fam
+        dp <- dp_fam
       }
       
       parameters %<>% add_row(
         cell_type = cell_type[cell],
         div_counter = div_counter[i],
         t_start = t_start[i],
-        quality = quality[i],
+        quality = quality_fam[cell],
         fam_nr = fam_nr,
         fam_nr_2 = fam_nr_2,
         fam_nr_3 = fam_nr_3,
@@ -685,12 +713,13 @@ generate_freq_famsize_table <- function(logfamsizes){
 plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = FALSE, 
                                       x_axis_max = NULL, y_axis_max = NULL, 
                                       multi_plot = FALSE){
-  if (multi_plot) {
+  if (multi_plot == TRUE) {
     freq_famsizes$freq <- freq_famsizes$means
     freq_famsizes$logfamsize <- as.numeric(c(0, seq(nrow(freq_famsizes) - 1)))
   } else {
     freq_famsizes$lower_bound <- NA
     freq_famsizes$upper_bound <- NA
+    freq_famsizes$sd <- NA
   }
   
   if (!is.data.frame(freq_famsizes)) {
@@ -725,12 +754,13 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = FAL
     addition <- data.frame(logfamsize = tail(bins, nr_rows), 
                            freq = rep(0, nr_rows),
                            lower_bound = rep(NA, nr_rows),
-                           upper_bound = rep(NA, nr_rows))
+                           upper_bound = rep(NA, nr_rows),
+                           sd = rep(NA, nr_rows))
     freq_famsizes <- rbind(freq_famsizes, addition)
   }
   
   plot <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
-    geom_bar(aes(y = freq), stat = "identity", fill = "#9f2a63") +
+    geom_bar(aes(y = freq), stat = "identity", fill = "#9f2a63", col = "black") +
     geom_errorbar(aes(ymin = freq - sd, ymax = freq + sd), width = 0.2) +
     geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), 
                color = "#9c9797", size = 1.5, shape = 19) + 
@@ -742,7 +772,9 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = FAL
     theme(plot.margin = margin(t = 0.7, r = 0, b = 0.5, l = 0, unit = "cm"),
           axis.text.x = element_text(face = NULL, size = 7.5)) +
     scale_x_continuous(breaks = 0:x_axis_max, guide = guide_axis(angle = 60)) +
-    scale_y_continuous(labels = label_number(accuracy = 0.01)) + ylim(0, y_axis_max)
+    scale_y_continuous(labels = label_number(accuracy = 0.01),
+                       expand = c(0, 0),
+                       limits = c(0, y_axis_max)) 
   
   if (!show_title) {
     plot <- plot + labs(title = NULL, subtitle = NULL)
@@ -814,10 +846,12 @@ generate_freq_famsize_table_multidays <- function(famsizes_table){
 
 #-------------------------------------------------------------------------------
 
-plot_v_grid_famsize_dist <- function(famsizes_table = NULL, frequencies_table = NULL, 
-                                     x_axis_max = NULL, y_axis_max = NULL, 
+plot_v_grid_famsize_dist <- function(famsizes_table = NULL, 
+                                     frequencies_table = NULL, 
+                                     x_axis_max = NULL, 
+                                     y_axis_max = NULL, 
                                      multi_plot = FALSE){
-  if (multi_plot) {
+  if (multi_plot == TRUE) {
     for (i in seq(4)) {
       frequencies_table[[i]]$freq <- frequencies_table[[i]]$means
       frequencies_table[[i]]$logfamsize <- seq(0, nrow(frequencies_table[[i]]) - 1)
@@ -849,7 +883,8 @@ plot_v_grid_famsize_dist <- function(famsizes_table = NULL, frequencies_table = 
   }
   
   plots <- lapply(1:4, function(day) {
-    plot_famsize_distribution(frequencies_table[[day]], day + 4, 
+    plot_famsize_distribution(frequencies_table[[day]], 
+                              day + 4, 
                               x_axis_max = x_axis_max[day], 
                               y_axis_max = y_axis_max[day],
                               multi_plot = multi_plot)
@@ -1112,6 +1147,79 @@ get_legend<-function(myggplot){
   leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
   legend <- tmp$grobs[[leg]]
   return(legend)
+}
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+# Functions below are for model 2 with quality
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+
+# Function to skew a uniform distribution towards higher values based on quality
+skewed_uniform <- function(n, min_val, max_val, quality) {
+  # Beta distribution parameters
+  alpha <- get_alpha(quality)
+  beta <- get_beta(quality)
+  
+  # Sample from beta distribution and transform to uniform distribution
+  beta_sample <- rbeta(n, alpha, beta)
+  return(min_val + (max_val - min_val) * beta_sample)
+}
+
+#-------------------------------------------------------------------------------
+
+generate_quality_effect_panelplot <- function(min_q, med_q, max_q){
+  steps <- seq(0, 1, 0.02)
+  
+  low_q <- data.frame("value" = steps, 
+                      "chance" = dbeta(steps, 
+                                       shape1 = get_alpha(min_q), 
+                                       shape2 = get_beta(min_q)))
+  plot_quality_low <- ggplot(low_q, aes(x = value, y = chance)) + 
+    geom_point() + theme_clean() + 
+    theme(axis.text.y = element_blank(), axis.text.x = element_blank()) +
+    labs(title = paste0("Minimum quality (", min_q, ")"))
+  
+  mid_q <- data.frame("value" = steps, 
+                      "chance" = dbeta(steps, 
+                                       shape1 = get_alpha(med_q), 
+                                       shape2 = get_beta(med_q)))
+  plot_quality_mid <- ggplot(mid_q, aes(x = value, y = chance)) + 
+    geom_point() + theme_clean() + 
+    theme(axis.text.y = element_blank(), axis.text.x = element_blank()) +
+    labs(title = paste0("Medium quality (", med_q, ")"))
+  
+  high_q <- data.frame("value" = steps, 
+                       "chance" = dbeta(steps, 
+                                        shape1 = get_alpha(max_q), 
+                                        shape2 = get_beta(max_q)))
+  plot_quality_high <- ggplot(high_q, aes(x = value, y = chance)) + 
+    geom_point() + theme_clean() + 
+    theme(axis.text.y = element_blank(), axis.text.x = element_blank()) +
+    labs(title = paste0("Maximum quality (", max_q, ")"))
+  
+  gt_quality <- arrangeGrob(grobs = list(plot_quality_low, 
+                                         plot_quality_mid,
+                                         plot_quality_high), 
+                            ncol =3)
+  
+  panel_plots_quality <- as_ggplot(gt_quality)
+  
+  return(panel_plots_quality)
+}
+
+get_largest_fam <- function(max_fam_table){
+  largest_fam <- max(max_fam_table$cells_prim)
+  median_fam <- median(max_fam_table$cells_prim)
+  return(c("largest_fam" = largest_fam, "median_fam" = median_fam))
+}
+
+get_famsize_prim <- function(max_fam_table){
+  famsizes <- max_fam_table$cells_prim
+  famsizes <- famsizes[order(famsizes, decreasing = T)]
+  total_famsize <- sum(famsizes)
+  famsizes_perc <- (famsizes/total_famsize) * 100 
+  return(famsizes_perc)
 }
 
 #-------------------------------------------------------------------------------

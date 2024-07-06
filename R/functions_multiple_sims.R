@@ -208,12 +208,9 @@ get_processed_famsize_stats <- function(famsize_stats){
 get_processed_stats <- function(max_fam_stats_long, scientific = F){
   means <- colMeans(max_fam_stats_long)
   sd <- apply(max_fam_stats_long, 2, sd)
-  names(sd) <- paste0("sd_", names(sd))
   margin_of_error <- 1.96 * (sd / sqrt(nrow(max_fam_stats_long)))
   lower_bound <- means - margin_of_error
-  names(lower_bound) <- paste0("lb_", names(lower_bound))
   upper_bound <- means + margin_of_error
-  names(upper_bound) <- paste0("ub_", names(upper_bound))
   
   if(scientific == F){
     for(output_stats in c("means", "sd", "lower_bound", "upper_bound")){
@@ -222,8 +219,11 @@ get_processed_stats <- function(max_fam_stats_long, scientific = F){
       assign(output_stats, df)  # Assign the modified data frame back to the original name
     }
   }
-  return(data.frame("means" = c(means), "sd" = c(sd), 
-                    "lower_bound" = c(lower_bound), "upper_bound" = c(upper_bound)))
+  return(data.frame("variable" = colnames(max_fam_stats_long),
+                    "means" = c(means), 
+                    "sd" = c(sd), 
+                    "lower_bound" = c(lower_bound), 
+                    "upper_bound" = c(upper_bound)))
 }
 
 get_Q_famsize_stats_multi <- function(max_fam_table){

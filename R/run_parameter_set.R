@@ -6,6 +6,19 @@ set.seed(seed)
 
 print("Generating parameters...")
 
+if(exists("quality_noise") == F){
+  quality_noise <- FALSE
+}
+if(exists("resolution_resp_plot") == F){
+  resolution_resp_plot <- 0.1
+}
+if(exists("uniform_fam") == F){
+  uniform_fam <- FALSE
+}
+if(exists("q_noise_dist") == F){
+  q_noise_dist <- NULL
+}
+
 prim_parameters <- pick_parameters(bp_rule = bp_rule,
                                   dp_rule = dp_rule,
                                   rq_rule = rq_rule,
@@ -15,6 +28,9 @@ prim_parameters <- pick_parameters(bp_rule = bp_rule,
                                   nr_burst_divs = nr_burst_divs,
                                   response_nr = 1,
                                   quality_dist = quality_dist,
+                                  quality_noise = quality_noise,
+                                  q_noise_dist = q_noise_dist,
+                                  uniform_fam = uniform_fam,
                                   ASD = ASD,
                                   burst_time = burst_time,
                                   max_run_time = max_run_time,
@@ -29,6 +45,9 @@ sec_parameters <- pick_parameters(response_nr = 2,
                                   t_run_rule = t_run_rule,
                                   nr_burst_divs = nr_burst_divs,
                                   quality_dist = quality_dist,
+                                  quality_noise = quality_noise,
+                                  q_noise_dist = q_noise_dist,
+                                  uniform_fam = uniform_fam,
                                   ASD = ASD,
                                   burst_time = burst_time,
                                   max_run_time = max_run_time,
@@ -43,6 +62,9 @@ ter_parameters <- pick_parameters(response_nr = 3,
                                   t_run_rule = t_run_rule,
                                   nr_burst_divs = nr_burst_divs,
                                   quality_dist = quality_dist,
+                                  quality_noise = quality_noise,
+                                  q_noise_dist = q_noise_dist,
+                                  uniform_fam = uniform_fam,
                                   ASD = ASD,
                                   burst_time = burst_time,
                                   max_run_time = max_run_time,
@@ -66,12 +88,12 @@ max_fam_table <- generate_max_fam_table(prim_parameters,
 
 #-------------------------------------------------------------------------------
 
-prim_resp <- generate_total_response_table(prim_parameters, 0, 50, 0.1)
+prim_resp <- generate_total_response_table(prim_parameters, 0, 50, resolution_resp_plot)
 
-sec_resp <- generate_total_response_table(sec_parameters, 0, 50, 0.1)
+sec_resp <- generate_total_response_table(sec_parameters, 0, 50, resolution_resp_plot)
 sec_resp$time <- sec_resp$time + 50 # secondary response starts at day 50
 
-ter_resp <- generate_total_response_table(ter_parameters, 0, 50, 0.1)
+ter_resp <- generate_total_response_table(ter_parameters, 0, 50, resolution_resp_plot)
 ter_resp$time <- ter_resp$time + 100 # tertiary response starts at day 100
 
 total_resp <- rbind(prim_resp, sec_resp, ter_resp)
@@ -174,6 +196,95 @@ panel_plots_combi <- as_ggplot(gt_combi) +                                # tran
 
 #-------------------------------------------------------------------------------
 
+largest_fam <- get_largest_fam(max_fam_table)
+largest_fam <- data.frame("metric" = names(largest_fam),
+                          "value" = largest_fam)
+
+largest_fam_plot <- ggplot(largest_fam, aes(y = log10(value), x = metric)) + 
+  geom_col(fill = "#9f2a63", width = 0.5, col = "black") +
+  ylim(0,6) +
+  theme_clean() + th +
+  labs(x = element_blank(),
+       y = "Family size (cell number, 10log-scale)")  +
+  scale_x_discrete(labels = c("Largest family", "Median family")) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme(plot.margin = margin(l = 1, b = 0.8, t = 0.6, unit = "cm"))
+
+famsizes_prim <- get_famsize_prim(max_fam_table)
+
+cum_size_top_fams <- c(sum(famsizes_prim[0:(0.02*length(famsizes_prim))]),
+                       sum(famsizes_prim[0:(0.05*length(famsizes_prim))]), 
+                       sum(famsizes_prim[0:(0.1*length(famsizes_prim))]),
+                       sum(famsizes_prim[0:(0.2*length(famsizes_prim))]), 
+                       sum(famsizes_prim[0:(0.4*length(famsizes_prim))]),
+                       sum(famsizes_prim[0:(1*length(famsizes_prim))]))
+
+cum_size_plot_data <- data.frame("families" = as.factor(c(2, 5, 10, 20, 40, 100)),
+                                 "response" = cum_size_top_fams)
+
+barplot_cumsize_fam <- ggplot(cum_size_plot_data, aes(x = families, y = response)) +
+  geom_col(fill = "#9f2a63", width = 0.5, col = "black") +
+  theme_clean() + th +
+  scale_y_continuous(limits = c(0, 100),
+                     n.breaks = 6,
+                     expand = c(0, 0)) +
+  labs(x = "Familes (%), ordered by size",
+       y = "Response (%)")
+
+panel_famsize_dist_gerlach <- plot_grid(plotlist = list(largest_fam_plot, barplot_cumsize_fam),
+                                        nrow = 1,
+                                        rel_widths = c(0.4, 0.6),
+                                        labels = c("A", "B"))
+
+#-------------------------------------------------------------------------------
+
+dd_total_burst <- (prim_parameters$bp * (prim_parameters$t_run - prim_parameters$nr_burst_divs * prim_parameters$t_burst)) + prim_parameters$nr_burst_divs
+dd_P_burst <- dd_total_burst[which(prim_parameters$cell_type == "P")]
+
+plot_dd_total_burst <- ggplot(as.data.frame(dd_total_burst), aes(x = dd_total_burst))  + 
+  geom_histogram(aes(y = after_stat(density)), binwidth = 1, fill = "#9f2a63", col = "black") + 
+  theme_clean() + th +
+  scale_y_continuous(expand = c(0,0)) +
+  labs(x = "Division destiny (burst included)",
+       y = "Density",
+       title = "All branches")
+
+plot_dd_P_burst <- ggplot(as.data.frame(dd_P_burst), aes(x = dd_P_burst)) + 
+  geom_histogram(aes(y = after_stat(density)), binwidth = 1, fill = "#9f2a63", col = "black") + 
+  theme_clean() + th +
+  scale_y_continuous(expand = c(0,0)) +
+  labs(x = "Division destiny (burst included)",
+       y = "Density",
+       title = "Proliferating branches")
+
+panel_dd_inc_burst <- plot_grid(plotlist = list(plot_dd_total_burst, plot_dd_P_burst),
+                                labels = c("A", "B"))  
+
+
+dd_total <- prim_parameters$bp * (prim_parameters$t_run - prim_parameters$nr_burst_divs * prim_parameters$t_burst)
+dd_P <- dd_total[which(prim_parameters$cell_type == "P")]
+
+plot_dd_total <- ggplot(as.data.frame(dd_total), aes(x = dd_total))  + 
+  geom_histogram(aes(y = after_stat(density)), binwidth = 1, fill = "#9f2a63", col = "black") + 
+  theme_clean() + th +
+  scale_y_continuous(expand = c(0,0)) +
+  labs(x = "Division destiny",
+       y = "Density",
+       title = "All branches")
+
+plot_dd_P <- ggplot(as.data.frame(dd_P), aes(x = dd_P)) + 
+  geom_histogram(aes(y = after_stat(density)), binwidth = 1, fill = "#9f2a63", col = "black") + 
+  theme_clean() + th +
+  scale_y_continuous(expand = c(0,0)) +
+  labs(x = "Division destiny",
+       y = "Density",
+       title = "Proliferating branches")
+
+panel_dd <- plot_grid(plotlist = list(plot_dd_total, plot_dd_P),
+                      labels = c("A", "B"))  
+
+#-------------------------------------------------------------------------------
+
 print("Calculating statistics...")
 
 prim_resp_stats <- get_total_response_stats(prim_resp)
@@ -211,7 +322,7 @@ ggsave(paste0(folder, run_name, "_famsize_dist_v_plot.pdf"), plot = famsize_dist
 ggsave(paste0(folder, run_name, "_famsize_dist_v_plot.jpg"), plot = famsize_dist_v_plot, 
        width = 5, height = 8, units = "in")
 
-ggsave(paste0(folder, run_name, "_Q_famsize.pdf"), plot = Q_famsize_plot, 
+ggsave(paste0(folder, run_name, "_Q_famsize.pdf"), plot = Q_famsize_col_plot, 
        width = 2500, height = 1800, units = "px")
 
 ggsave(paste0(folder, run_name, "_Q_famsize_boxplot.pdf"), plot = Q_famsize_all_resp_plot, 
@@ -220,14 +331,69 @@ ggsave(paste0(folder, run_name, "_Q_famsize_boxplot.pdf"), plot = Q_famsize_all_
 ggsave(paste0(folder, run_name, "_Q_famsize_boxplot.png"), plot = Q_famsize_all_resp_plot, 
        width = 1950, height = 3093, units = "px")
 
-ggsave(paste0(folder, run_name, "_cor_prim_sec_plot.pdf"), plot = cor_prim_sec_plot, 
+ggsave(paste0(folder, run_name, "_cor_prim_sec_plot.pdf"), plot = cor_prim_sec_nrQ_plot, 
        width = 1500, height = 1300, units = "px")
 
-ggsave(paste0(folder, run_name, "_cor_sec_ter_plot.pdf"), plot = cor_sec_ter_plot, 
+ggsave(paste0(folder, run_name, "_cor_sec_ter_plot.pdf"), plot = cor_sec_ter_nrQ_plot, 
        width = 1500, height = 1300, units = "px")
 
 ggsave(paste0(folder, run_name, "_response.pdf"), plot = response_plot, 
        width = 2500, height = 1800, units = "px")
+
+ggsave(paste0(folder, run_name, "_largest_fam_plot.jpg"), plot = largest_fam_plot, 
+       width = 4, height = 6, units = "in")
+
+ggsave(paste0(folder, run_name, "_cumsize_fam_barplot.jpg"), plot = barplot_cumsize_fam, 
+       width = 4, height = 3, units = "in")
+
+ggsave(paste0(folder, run_name, "_panel_famsize_dist.jpg"), plot = panel_famsize_dist_gerlach, 
+       width = 7, height = 3, units = "in")
+
+ggsave(paste0(folder, run_name, "_panel_dd.jpg"), plot = panel_dd, 
+       width = 7, height = 3, units = "in")
+
+ggsave(paste0(folder, run_name, "_panel_dd_inc_burst.jpg"), plot = panel_dd_inc_burst, 
+       width = 7, height = 3, units = "in")
+
+if(!is.null(quality_dist)){  
+  plot_parameters <- ggplot(prim_parameters[prim_parameters$cell_type == "P",]) +
+    geom_point(aes(x = t_run, y = bp, col = quality)) +
+    theme_clean() + th +
+    labs(x = "Run time (days)",
+         y = "Proliferation rate (divisions/day)") +
+    guides(colour = guide_colourbar(show.limits = TRUE, 
+                                    title.position = "top",
+                                    barwidth = 10,
+                                    barheight = 0.5)) +
+    labs(color = "Quality") +
+    scale_color_viridis_c(option = "inferno", direction = -1)
+  
+  if(exists("min_q") == T){
+    plot_parameters <-  plot_parameters +     
+      scale_color_viridis_c(option = "inferno", direction = -1,
+                            limits = c(min_q, max_q),
+                            labels = c(min_q, (min_q + max_q)/2, max_q),
+                            breaks = c(min_q, (min_q + max_q)/2, max_q)) 
+    
+    panel_plots_quality <- generate_quality_effect_panelplot(min_q, med_q, max_q)
+    
+    ggsave(paste0(folder, run_name, "_panel_plot_quality.png"), plot = panel_plots_quality, 
+           width = 2800, height = 1000, units = "px")
+  }
+
+  
+  ggsave(paste0(folder, run_name, "_plot_parameters.png"), plot = plot_parameters, 
+         width = 1500, height = 2000, units = "px")
+} else {
+  plot_parameters <- ggplot(prim_parameters[prim_parameters$cell_type == "P",]) +
+    geom_point(aes(x = t_run, y = bp)) +
+    theme_clean() + th +
+    labs(x = "Run time (days)",
+         y = "Proliferation rate (divisions/day)")
+  
+  ggsave(paste0(folder, run_name, "_plot_parameters.png"), plot = plot_parameters, 
+         width = 1500, height = 2000, units = "px")
+}
 
 #-------------------------------------------------------------------------------
 
@@ -245,6 +411,9 @@ print(paste("Minumum start time:", min_t_start))
 print(paste("Distribution of run times:", t_run_rule))
 print(paste("Nr of burst divisons rule:", nr_burst_divs))
 print(paste("Quality distribution:", quality_dist))
+print(paste("Quality noise:", quality_noise))
+print(paste("Quality noise distribution:", q_noise_dist))
+print(paste("Uniform family:", uniform_fam))
 print(paste("ASD:", ASD))
 print(paste("Time per burst division:", burst_time))
 print(paste("Forced stop time:", max_run_time))
@@ -269,3 +438,4 @@ sink(file = NULL)
 #-------------------------------------------------------------------------------
 
 print(paste(run_name, "- run finished, results saved"))
+
