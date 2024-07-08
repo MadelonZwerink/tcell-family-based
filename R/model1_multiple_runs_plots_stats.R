@@ -88,15 +88,15 @@ processed_total_resp_stats <- data.frame(rbind(get_processed_stats(prim_response
 
 processed_famsizes_freq_stats <- lapply(famsizes_freq_table, get_processed_stats)
 
-famsize_dist_v_plot_multi <- 
-  plot_v_grid_famsize_dist(frequencies_table = processed_famsizes_freq_stats, 
+famsize_dist_plot_multi <- 
+  plot_grid_famsize_dist(frequencies_table = processed_famsizes_freq_stats, 
                            multi_plot = T,
                            x_axis_max = rep(19, 4))
 
-ggsave(paste0(folder, run_name, "famsize_dist_v_plot_multi.pdf"), plot = famsize_dist_v_plot_multi, 
+ggsave(paste0(folder, run_name, "famsize_dist_plot_multi.pdf"), plot = famsize_dist_plot_multi, 
        width = 5, height = 8, units = "in")
 
-ggsave(paste0(folder, run_name, "famsize_dist_v_plot_multi.jpg"), plot = famsize_dist_v_plot_multi, 
+ggsave(paste0(folder, run_name, "famsize_dist_plot_multi.jpg"), plot = famsize_dist_plot_multi, 
        width = 5, height = 8, units = "in")
 
 #-------------------------------------------------------------------------------
@@ -120,6 +120,7 @@ largest_fam_plot <- ggplot(largest_fam, aes(y = log10(value), x = metric)) +
   labs(x = element_blank(),
        y = "Family size (cell number, 10log-scale)")  +
   scale_x_discrete(labels = c("Largest family", "Median family")) +
+  scale_y_continuous(expand = c(0, 0)) +
   theme(plot.margin = margin(l = 1, b = 0.8, t = 0.6, unit = "cm"))
 
 ggsave(paste0(folder, run_name, "largest_fam_plot.jpg"), 
@@ -128,7 +129,7 @@ ggsave(paste0(folder, run_name, "largest_fam_plot.jpg"),
 
 #-------------------------------------------------------------------------------
 
-famsizes_prim <- as.data.frame(sapply(max_fam_table, get_famsize_prim))
+famsizes_prim <- as.data.frame(sapply(max_fam_table, get_famsize_fraction))
 # Each column is a simulation, each row is a family, they are ordered from big to small
 
 twoperc_resp <- colSums(famsizes_prim[0:(0.02*nrow(famsizes_prim)),])

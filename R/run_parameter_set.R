@@ -104,7 +104,7 @@ print("Making plots...")
 
 response_plot <- plot_response(total_resp)
 
-famsize_dist_v_plot <- plot_v_grid_famsize_dist(df_famsizes)
+famsize_dist_plot <- plot_grid_famsize_dist(df_famsizes)
 
 #sec_famsize_dist_plot <- plot_v_grid_famsize_dist(df_famsizes_sec)
 #ter_famsize_dist_plot <- plot_v_grid_famsize_dist(df_famsizes_ter)
@@ -210,7 +210,7 @@ largest_fam_plot <- ggplot(largest_fam, aes(y = log10(value), x = metric)) +
   scale_y_continuous(expand = c(0, 0)) +
   theme(plot.margin = margin(l = 1, b = 0.8, t = 0.6, unit = "cm"))
 
-famsizes_prim <- get_famsize_prim(max_fam_table)
+famsizes_prim <- get_famsize_fraction(max_fam_table)
 
 cum_size_top_fams <- c(sum(famsizes_prim[0:(0.02*length(famsizes_prim))]),
                        sum(famsizes_prim[0:(0.05*length(famsizes_prim))]), 
@@ -316,10 +316,10 @@ ggsave(paste0(folder, run_name, "_panel_plot_combi.pdf"), plot = panel_plots_com
 ggsave(paste0(folder, run_name, "_panel_plot_combi.jpg"), plot = panel_plots_combi, 
        width = 6.5, height = 6.5, units = "in")
 
-ggsave(paste0(folder, run_name, "_famsize_dist_v_plot.pdf"), plot = famsize_dist_v_plot, 
+ggsave(paste0(folder, run_name, "_famsize_dist_plot.pdf"), plot = famsize_dist_plot, 
        width = 5, height = 8, units = "in")
 
-ggsave(paste0(folder, run_name, "_famsize_dist_v_plot.jpg"), plot = famsize_dist_v_plot, 
+ggsave(paste0(folder, run_name, "_famsize_dist_plot.jpg"), plot = famsize_dist_plot, 
        width = 5, height = 8, units = "in")
 
 ggsave(paste0(folder, run_name, "_Q_famsize.pdf"), plot = Q_famsize_col_plot, 
