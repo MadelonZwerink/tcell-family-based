@@ -126,13 +126,13 @@ largest_fam <- as.data.frame(t(sapply(max_fam_table, get_largest_fam))) %>%
 
 largest_fam_plot <- ggplot(largest_fam, aes(y = log10(value), x = metric)) + 
   geom_jitter() +
-  stat_summary(fun.y=mean, geom="crossbar", colour="#9f2a63") +
-  ylim(0,6) +
+  stat_summary(fun=mean, geom="crossbar", colour="#9f2a63") +
   theme_clean() + th +
   labs(x = element_blank(),
        y = "Family size (cell number, 10log-scale)")  +
   scale_x_discrete(labels = c("Largest family", "Median family")) +
-  scale_y_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0),
+                     limits = c(0, 6)) +
   theme(plot.margin = margin(l = 1, b = 0.8, t = 0.6, unit = "cm"))
 
 #B
@@ -160,7 +160,7 @@ cum_size_plot_data <- data.frame("families" = as.factor(c(2, 5, 10, 20, 40, 100)
 barplot_cumsize_fam <- ggplot(cum_size_plot_data, aes(x = families, y = response)) +
   geom_col(fill = "#9f2a63", width = 0.5, col = "black") + 
   geom_errorbar(aes(ymin = response - sd, ymax = response + sd), 
-                position = "dodge", width = 0.25, size = 0.8) +
+                position = "dodge", width = 0.25, linewidth = 0.8) +
   theme_clean() + th +
   scale_y_continuous(limits = c(0, 100),
                      n.breaks = 6,
@@ -176,6 +176,24 @@ panel_famsize_disparity <- plot_grid(plotlist = list(largest_fam_plot, barplot_c
 
 ggsave(paste0(folder, run_name, "_4_panel_famsize_disparity.jpg"), plot = panel_famsize_disparity, 
        width = 7, height = 3, units = "in")
+
+sink(file = paste0(folder, run_name, "_4_famsize_disparity.txt"))
+
+print("PANEL A")
+print("Mean largest family size:")
+mean(largest_fam$value[largest_fam$metric == "largest_fam"])
+print("SD:")
+sd(largest_fam$value[largest_fam$metric == "largest_fam"])
+
+print("Mean median family size:")
+mean(largest_fam$value[largest_fam$metric == "median_fam"])
+print("SD:")
+sd(largest_fam$value[largest_fam$metric == "median_fam"])
+
+print("PANEL B")
+cum_size_plot_data
+
+sink(file = NULL)
 
 #-------------------------------------------------------------------------------
 #Figure 5: panel with correlations across responses

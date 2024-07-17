@@ -1,0 +1,49 @@
+[1] "Run_name: q20"
+[1] "Seed: 4321"
+[1] "Nr. of families: 500"
+[1] "Distribution proliferation rates: q*12.7/3"
+[1] "Death rate proliferation cells: 0.5"
+[1] "Chance to become Q cell: 0.5"
+[1] "Distribution start times: rlnorm(nr_of_families, meanlog = 1.4, sdlog = 0.3)"
+[1] "Minumum start time: 0"
+[1] "Distribution of run times: 3 + (nr_burst_divs[i]*t_burst[i])"
+[1] "Nr of burst divisons rule: sample(c(2,3,4), nr_of_families, replace = TRUE)"
+[1] "Quality distribution: rbeta(nr_of_families, shape1 = 2.33, shape2 = 3.92)"
+[1] "Quality noise: FALSE"
+[1] "Quality noise distribution: FALSE"
+[1] "Uniform family: TRUE"
+[1] "ASD: FALSE"
+[1] "Time per burst division: 0.15"
+[1] "Forced stop time: "
+[1] "Famsize stats"
+  timepoint mean median        sd disparity
+1         5   88     18   374.338     0.704
+2         6  572     35  2638.291     0.795
+3         7 2853     82 16858.542     0.840
+4         8 4180    159 27006.560     0.805
+[1] "Response stats"
+  max_cells time_max Q_cells
+1   2073385        8    2379
+2   7512779       58   11091
+3  36347874      108   51742
+[1] "Correlation nr of Q cells and family size (day 7)"
+          r      p_value
+1 0.1801852 5.074011e-05
+2 0.5974364 1.075307e-49
+3 0.6304124 9.459784e-57
+[1] "Correlation nr of Q cells and maximum family size in primary response"
+
+	Spearman's rank correlation rho
+
+data:  Q_famsize_table$famsize and Q_famsize_table$Q_cells
+S = 17801563, p-value = 0.001102
+alternative hypothesis: true rho is not equal to 0
+sample estimates:
+      rho 
+0.1455216 
+
+[1] "Family sizes on day 7 per response and correlation prim-sec and sec-ter family size"
+       mean      median correlation      p_value
+1  2761.334    75.41001   0.1632145 2.472833e-04
+2 12739.735  1651.08916   0.0000000 0.000000e+00
+3 52993.403 23316.12486   0.3945231 4.536701e-20

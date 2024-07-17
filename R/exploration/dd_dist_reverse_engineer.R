@@ -98,7 +98,6 @@ weighted_dd_per_fam <- dd_m1_P %>%
 
 weighted_dd_per_fam$fam_dd <- log2(weighted_dd_per_fam$fam_cells)
 
-
 indices <- vapply(weighted_dd_per_fam$fam_dd, get_closest_index, numeric(1))
 df_corrected <- range_df[indices,]
 

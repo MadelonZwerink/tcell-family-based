@@ -1,0 +1,423 @@
+# Output from cluster:
+
+## DATA
+### df_famsizes
+### total_resp
+### max_fam_table
+### famsizes_freq_table
+
+## STATISTICS
+### famsize_stats
+### max_fam_stats_long
+### total_response_stats
+
+#-------------------------------------------------------------------------------
+# What do I need to make?
+
+## PLOTS
+### Response plot: small line for each simulation with mean, embed in panelfig.
+### Famsize distribution plot: famsize distributions with conf int (use old code)
+
+# STATS
+### Average correlations Q cells and famsize
+### Average correlations prim-sec and sec-ter
+### Average number of Q cells
+### Average response size
+
+#-------------------------------------------------------------------------------
+# Provide information specific for run
+folder <- "./results/model1/iterative_runs/m1/"
+run_name <- "m1_multiple_"
+
+source("./R/functions_multiple_sims.R") 
+
+# Load data
+data_objects <- c("df_famsizes", "total_resp", "max_fam_table", "famsizes_freq_table",
+                  "famsizes_stats", "max_fam_stats_long", "prim_response_stats",
+                  "sec_response_stats", "ter_response_stats")
+for(data_object in data_objects){
+  assign(data_object, readRDS(paste0(folder, run_name, data_object, ".rds"))) 
+}
+
+folder <- "./results/model1/iterative_runs/finaltestscript/"
+run_name <- "finaltest2_"
+
+#-------------------------------------------------------------------------------
+# Response plot
+
+total_resp_combined <- total_resp %>%
+  imap_dfr(~mutate(.x, source = .y)) %>%
+  arrange(source, time)
+
+row.names(total_resp_combined) <- NULL
+
+total_resp_mean <- total_resp_combined %>%
+  group_by(time) %>%
+  summarise(mean_log_cells = mean(log_cells),
+            sd_log_cells = sd(log_cells),
+            lower_bound = mean(log_cells) - 1.96 * sd(log_cells)/sqrt(n()),
+            upper_bound = mean(log_cells) + 1.96 * sd(log_cells)/sqrt(n()),
+            .groups = "drop")
+
+response_plot_multi <- ggplot(data = total_resp_combined, aes(x = time, y = log_cells, group = source)) +
+  #geom_line(size = 0.05) +
+  geom_line(data = total_resp_mean, aes(x = time, y = mean_log_cells), 
+            color = "black", size = 0.5, inherit.aes = F) +  # Add mean line
+  geom_ribbon(data = total_resp_mean, aes(x = time, 
+                                          ymin = mean_log_cells - sd_log_cells, 
+                                          ymax = mean_log_cells + sd_log_cells), 
+              fill = "#9f2a63", alpha = 0.5, inherit.aes = F) +
+#  geom_ribbon(data = total_resp_mean, aes(x = time, ymin = log10(mean_cells)))
+  labs(x = "Time (days)",
+       y = "Nr. of cells (log-scale)") + 
+  theme_clean() + 
+  th
+
+#-------------------------------------------------------------------------------
+# Response stats
+
+processed_total_resp_stats <- data.frame(rbind(get_processed_stats(prim_response_stats),
+                                               get_processed_stats(sec_response_stats),
+                                               get_processed_stats(ter_response_stats)))
+
+#-------------------------------------------------------------------------------
+# Famsize distribution plot
+# Use famsizes_freq_table, which is a list of dataframes that contains a dataframe
+# for each day. Each row represents a simulation and the columns indicate the fraction 
+# of cells in each bin
+
+processed_famsizes_freq_stats <- lapply(famsizes_freq_table, get_processed_stats)
+
+famsize_dist_plot_multi <- 
+  plot_grid_famsize_dist(frequencies_table = processed_famsizes_freq_stats, 
+                           multi_plot = T,
+                           x_axis_max = rep(19, 4))
+
+ggsave(paste0(folder, run_name, "famsize_dist_plot_multi.pdf"), plot = famsize_dist_plot_multi, 
+       width = 5, height = 8, units = "in")
+
+ggsave(paste0(folder, run_name, "famsize_dist_plot_multi.jpg"), plot = famsize_dist_plot_multi, 
+       width = 5, height = 8, units = "in")
+
+#-------------------------------------------------------------------------------
+# Famsize statistics
+famsizes_stats <- lapply(famsizes_stats, convert_cols_to_numeric)
+processed_famsize_stats <- lapply(famsizes_stats, get_processed_stats)
+
+#-------------------------------------------------------------------------------
+#Recreates Fig. 1B from Gerlach et al. (2013)
+
+largest_fam <- as.data.frame(t(sapply(max_fam_table, get_largest_fam))) %>%
+  pivot_longer(cols = everything(),
+               names_to = "metric",
+               values_to = "value")
+
+largest_fam_plot <- ggplot(largest_fam, aes(y = log10(value), x = metric)) + 
+  geom_jitter() +
+  stat_summary(fun.y=mean, geom="crossbar", colour="#9f2a63") +
+  ylim(0,6) +
+  theme_clean() + th +
+  labs(x = element_blank(),
+       y = "Family size (cell number, 10log-scale)")  +
+  scale_x_discrete(labels = c("Largest family", "Median family")) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme(plot.margin = margin(l = 1, b = 0.8, t = 0.6, unit = "cm"))
+
+ggsave(paste0(folder, run_name, "largest_fam_plot.jpg"), 
+       plot = largest_fam_plot, 
+       width = 4, height = 6, units = "in")
+
+#-------------------------------------------------------------------------------
+
+famsizes_prim <- as.data.frame(sapply(max_fam_table, get_famsize_fraction))
+# Each column is a simulation, each row is a family, they are ordered from big to small
+
+twoperc_resp <- colSums(famsizes_prim[0:(0.02*nrow(famsizes_prim)),])
+fiveperc_resp <- colSums(famsizes_prim[0:(0.05*nrow(famsizes_prim)),])
+tenperc_resp <- colSums(famsizes_prim[0:(0.1*nrow(famsizes_prim)),])
+twentyperc_resp <- colSums(famsizes_prim[0:(0.2*nrow(famsizes_prim)),])
+fourtyperc_resp <- colSums(famsizes_prim[0:(0.4*nrow(famsizes_prim)),])
+hundredperc_resp <- colSums(famsizes_prim)
+
+cum_size_top_fams <- data.frame("2" = twoperc_resp,
+                                "5" = fiveperc_resp, 
+                                "10" = tenperc_resp,
+                                "20" = twentyperc_resp, 
+                                "40" = fourtyperc_resp,
+                                "100" = hundredperc_resp)
+
+cum_size_plot_data <- data.frame("families" = as.factor(c(2, 5, 10, 20, 40, 100)),
+                                 "response" = colMeans(cum_size_top_fams),
+                                 "sd" = sapply(cum_size_top_fams, sd))
+
+barplot_cumsize_fam <- ggplot(cum_size_plot_data, aes(x = families, y = response)) +
+  geom_col(fill = "#9f2a63", width = 0.5, col = "black") + 
+  geom_errorbar(aes(ymin = response - sd, ymax = response + sd), 
+                position = "dodge", width = 0.25, size = 0.8) +
+  theme_clean() + th +
+  scale_y_continuous(limits = c(0, 100),
+                     n.breaks = 6,
+                     expand = c(0, 0)) +
+  labs(x = "Familes (%), ordered by size",
+       y = "Response (%)")
+
+ggsave(paste0(folder, run_name, "cumsize_fam_barplot.jpg"), 
+       plot = barplot_cumsize_fam, 
+       width = 4, height = 3, units = "in")
+
+panel_famsize_dist_gerlach <- plot_grid(plotlist = list(largest_fam_plot, barplot_cumsize_fam),
+                                        nrow = 1,
+                                        rel_widths = c(0.4, 0.6),
+                                        labels = c("A", "B"))
+
+ggsave(paste0(folder, run_name, "panel_famsize_dist.jpg"), 
+       plot = panel_famsize_dist_gerlach, 
+       width = 7, height = 3, units = "in")
+
+#-------------------------------------------------------------------------------
+# Maxfam stats
+max_fam_stats_long <- convert_cols_to_numeric(max_fam_stats_long)
+
+max_fam_boxplot_cor_data <- max_fam_stats_long %>%
+  select(cor_prim_sec, cor_sec_ter) %>%
+  pivot_longer(cols = all_of(c("cor_prim_sec", "cor_sec_ter")),
+               names_to = "metric",
+               values_to = "value")
+
+coeff <- 10^14
+
+max_fam_boxplot_pvalue_data <- max_fam_stats_long %>%
+  select(p_value_prim_sec, p_value_sec_ter) %>%
+  mutate(p_value_sec_ter = p_value_sec_ter * coeff) %>%
+  pivot_longer(cols = all_of(c("p_value_prim_sec", "p_value_sec_ter")),
+               names_to = "metric",
+               values_to = "value")
+
+boxplot_correlations <- ggplot(max_fam_boxplot_cor_data, aes(x = metric, y = value)) + 
+  geom_boxplot() +
+  geom_signif(comparisons = list(c(1, 2)), map_signif_level = T) +
+  theme_clean() + th +
+  labs(
+    y = "Spearman r",
+    x = element_blank()) +
+  scale_x_discrete(labels = c("1vs2", "2vs3")) +
+  ylim(-0.05, 0.6) + 
+  theme(plot.margin = margin(t = 0.5, r = 0.5, l = 0.5, b = 0.7, unit = "cm"))
+
+boxplot_p_values <- ggplot(max_fam_boxplot_pvalue_data) + 
+  geom_boxplot(aes(y = value, x = metric)) +
+  theme_clean() + th +
+  labs(
+    y = "P-value",
+    x = element_blank()) +
+  scale_x_discrete(labels = c("prim vs sec", "sec vs ter"))  +
+  scale_y_continuous(
+    # Features of the first axis
+    name = "P-value",
+    # Add a second axis and specify its features
+    sec.axis = sec_axis(trans=~./coeff, name="P-value", 
+                        breaks = c(0, 0.25/coeff, 0.5/coeff, 0.75/coeff, 1/coeff))
+  )
+
+ggsave(paste0(folder, run_name, "famsize_correlations_boxplot.jpg"), 
+       plot = boxplot_correlations, 
+       width = 4, height = 6, units = "in")
+
+ggsave(paste0(folder, run_name, "famsize_cor_pvalues_boxplot.jpg"), 
+       plot = boxplot_p_values, 
+       width = 4, height = 6, units = "in")
+
+processed_max_fam_stats <- get_processed_stats(max_fam_stats_long)
+
+#-------------------------------------------------------------------------------
+# Q famsize stats
+Q_famsize_stats <- sapply(max_fam_table, get_Q_famsize_stats_multi)
+Q_famsize_stats <- as.data.frame(t(Q_famsize_stats))
+colnames(Q_famsize_stats) <- c("prim_cor", "sec_cor", "ter_cor", 
+                               "prim_pvalue", "sec_pvalue", "ter_pvalue")
+processed_Q_famsize_stats <- get_processed_stats(Q_famsize_stats)
+
+#-------------------------------------------------------------------------------
+
+output_data <- c("processed_total_resp_stats", "processed_max_fam_stats", 
+                 "processed_famsizes_freq_stats", "processed_famsize_stats", 
+                 "processed_Q_famsize_stats")
+
+sink(file = paste0(folder, run_name, "output.txt"))
+
+for(output_stats in output_data){
+  print(eval(output_stats))
+  print(get(eval(output_stats)))
+}
+
+sink(file = NULL)
+
+#-------------------------------------------------------------------------------
+# Make the panelplot by combining the total response graph from the iterative
+# run with the other graphs from the regular run
+
+seed <- 4321
+families <- 500
+
+set.seed(seed)
+
+bp_rule <- 'runif(1, min = 0, max = 3.5)'
+dp_rule <- 0.5 # default
+rq_rule <- 0.5 # default
+t_start_dist <- 'rlnorm(nr_of_families, meanlog = 1.4, sdlog = 0.3)'
+t_run_rule <- 'runif(1, min = 0.6, max = 4)' 
+nr_burst_divs <- 'sample(c(2,3,4), nr_of_families, replace = TRUE)'
+quality_dist <- NULL
+ASD <- FALSE
+burst_time <- 0.15 # default
+max_run_time <- NULL
+min_t_start <- 2.5
+
+prim_parameters <- pick_parameters(bp_rule = bp_rule,
+                                   dp_rule = dp_rule,
+                                   rq_rule = rq_rule,
+                                   t_start_dist = t_start_dist,
+                                   t_run_rule = t_run_rule,
+                                   nr_of_families = families,
+                                   nr_burst_divs = nr_burst_divs,
+                                   response_nr = 1,
+                                   quality_dist = quality_dist,
+                                   ASD = ASD,
+                                   burst_time = burst_time,
+                                   max_run_time = max_run_time,
+                                   min_t_start = min_t_start)
+
+sec_parameters <- pick_parameters(response_nr = 2,
+                                  prev_parameters = prim_parameters,
+                                  bp_rule = bp_rule,
+                                  dp_rule = dp_rule,
+                                  rq_rule = rq_rule,
+                                  t_start_dist = t_start_dist,
+                                  t_run_rule = t_run_rule,
+                                  nr_burst_divs = nr_burst_divs,
+                                  quality_dist = quality_dist,
+                                  ASD = ASD,
+                                  burst_time = burst_time,
+                                  max_run_time = max_run_time,
+                                  min_t_start = min_t_start)
+
+ter_parameters <- pick_parameters(response_nr = 3,
+                                  prev_parameters = sec_parameters,
+                                  bp_rule = bp_rule,
+                                  dp_rule = dp_rule,
+                                  rq_rule = rq_rule,
+                                  t_start_dist = t_start_dist,
+                                  t_run_rule = t_run_rule,
+                                  nr_burst_divs = nr_burst_divs,
+                                  quality_dist = quality_dist,
+                                  ASD = ASD,
+                                  burst_time = burst_time,
+                                  max_run_time = max_run_time,
+                                  min_t_start = min_t_start)
+
+#-------------------------------------------------------------------------------
+
+Q_famsize_table <- generate_Q_famsize_table(prim_parameters)
+Q_famsize_col_plot <- plot_Q_famsize(Q_famsize_table, label_burst_divs = "col", 
+                                     show_legend = T, linear_model = F)
+
+max_fam_table <- generate_max_fam_table(prim_parameters, 
+                                        sec_parameters, 
+                                        ter_parameters, 
+                                        type = "time", 
+                                        timepoint = 7)
+
+cor_prim_sec_nrQ_plot <- plot_prim_sec_max_fam(max_fam_table, label_burst_divs = "shape")
+cor_sec_ter_nrQ_plot <-  plot_sec_ter_max_fam(max_fam_table, label_burst_divs = "shape")
+legend_cor_nrQ_plot <- get_legend(cor_prim_sec_nrQ_plot)
+cor_prim_sec_nrQ_plot <- cor_prim_sec_nrQ_plot + theme(legend.position = "none")
+cor_sec_ter_nrQ_plot <- cor_sec_ter_nrQ_plot + theme(legend.position = "none")
+
+#-------------------------------------------------------------------------------
+
+gt <- arrangeGrob(grobs = list(legend_cor_nrQ_plot, 
+                                     response_plot_multi,
+                                     cor_prim_sec_nrQ_plot, 
+                                     cor_sec_ter_nrQ_plot), 
+                        nrow = 8, 
+                        layout_matrix = rbind(c(2,2,2,2), 
+                                              c(2,2,2,2),
+                                              c(2,2,2,2),  
+                                              c(3,3,4,4), 
+                                              c(3,3,4,4), 
+                                              c(3,3,4,4), 
+                                              c(3,3,4,4), 
+                                              c(1,1,1,1)),
+                        padding = unit(0, "line"))
+
+panel_plots <- as_ggplot(gt) +             # transform to a ggplot
+  draw_plot_label(label = c("A", "B", "C"), 
+                  size = 13,
+                  x = c(0, 0, 0.5), 
+                  y = c(1, 0.63, 0.63))
+
+ggsave(paste0(folder, run_name, "panel_plot_cor.pdf"), plot = panel_plots, 
+       width = 6.5, height = 6.5, units = "in")
+
+ggsave(paste0(folder, run_name, "panel_plot_cor.jpg"), plot = panel_plots, 
+       width = 6.5, height = 6.5, units = "in")
+
+#-------------------------------------------------------------------------------
+
+gt2 <- arrangeGrob(grobs = list(legend_cor_nrQ_plot, 
+                               response_plot_multi,
+                               cor_prim_sec_nrQ_plot, 
+                               cor_sec_ter_nrQ_plot,
+                               boxplot_correlations), 
+                  nrow = 8, 
+                  layout_matrix = rbind(c(2,2,2,5), 
+                                        c(2,2,2,5),
+                                        c(2,2,2,5),  
+                                        c(3,3,4,4), 
+                                        c(3,3,4,4), 
+                                        c(3,3,4,4), 
+                                        c(3,3,4,4), 
+                                        c(1,1,1,1)),
+                  padding = unit(0, "line"))
+
+panel_plots2 <- as_ggplot(gt2) +             # transform to a ggplot
+  draw_plot_label(label = c("A", "B", "C", "D"), 
+                  size = 13,
+                  x = c(0, 0.75, 0, 0.5), 
+                  y = c(1, 1, 0.63, 0.63))
+
+ggsave(paste0(folder, run_name, "panel_plot_cor2.pdf"), plot = panel_plots2, 
+       width = 6.5, height = 6.5, units = "in")
+
+ggsave(paste0(folder, run_name, "panel_plot_cor2.jpg"), plot = panel_plots2, 
+       width = 6.5, height = 6.5, units = "in")
+
+#-------------------------------------------------------------------------------
+
+gt_combi <- arrangeGrob(grobs = list(legend_cor_nrQ_plot, 
+                                     response_plot_multi, 
+                                     Q_famsize_col_plot, 
+                                     cor_prim_sec_nrQ_plot, 
+                                     cor_sec_ter_nrQ_plot), 
+                        nrow = 8, 
+                        layout_matrix = rbind(c(2,2,3,3), 
+                                              c(2,2,3,3),
+                                              c(2,2,3,3),  
+                                              c(4,4,5,5), 
+                                              c(4,4,5,5), 
+                                              c(4,4,5,5), 
+                                              c(4,4,5,5), 
+                                              c(1,1,1,1)),
+                        padding = unit(0, "line"))
+
+panel_plots_combi <- as_ggplot(gt_combi) +             # transform to a ggplot
+  draw_plot_label(label = c("A", "B", "C", "D"), 
+                  size = 13,
+                  x = c(0, 0.5, 0, 0.5), 
+                  y = c(1, 1, 0.63, 0.63))
+
+ggsave(paste0(folder, run_name, "panel_plot_combi.pdf"), plot = panel_plots_combi, 
+       width = 6.5, height = 6.5, units = "in")
+
+ggsave(paste0(folder, run_name, "panel_plot_combi.jpg"), plot = panel_plots_combi, 
+       width = 6.5, height = 6.5, units = "in")

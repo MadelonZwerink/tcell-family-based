@@ -115,36 +115,47 @@ get_famsize_stats_multidays_multi <- function(df_famsizes){
   return(famsizes_stats_long)
 }
 
-# The function below returns a dataframe in which each row is a simulation and
-# each column contains a different logfamsize bin
-generate_freq_famsize_table_multidays_multi <- function(df_famsizes){
+generate_freq_famsize_table_multidays_multi <- function(df_famsizes) {
+  # Initialize a list to store frequency tables for each day
   famsizes_freq <<- lapply(1:4, function(day_index) {
+    # Process each simulation for the current day
     sapply(seq_along(df_famsizes), function(sim_index) {
+      # Generate frequency table for logfamsize on the current day
       freq_table <- generate_freq_famsize_table(df_famsizes[[sim_index]][[day_index]]$logfamsize)
-      if(setequal(freq_table$logfamsize, c(0, seq(max(freq_table$logfamsize)))) == F){
-        print(paste0("Warning: frequencies are off, simulation nr: ", sim_index,
-                     " day: ", day_index + 4))}
-      if(length(freq_table$freq) <= 20){
+      
+      # Check for missing bins in the frequency table
+      expected_bins <- c(0, seq(max(freq_table$logfamsize)))
+      if (!setequal(freq_table$logfamsize, expected_bins)) {
+        warning(paste0("Warning: frequencies are off, simulation nr: ", sim_index,
+                       " day: ", day_index + 4))
+      }
+      
+      # Ensure frequency vector length is 20, pad with zeros if necessary
+      if (length(freq_table$freq) <= 20) {
         freq_vect <- c(freq_table$freq, rep(0, 20 - length(freq_table$freq)))
       } else {
-        print(paste0("Warning: unusually large family detected in simulation ", sim_index))
+        warning(paste0("Warning: unusually large family detected in simulation ", sim_index))
+        freq_vect <- freq_table$freq 
       }
-      freq_vect
+      
+      return(freq_vect)
     })
-  }) 
-  
-  # The sapply function puts each observation in a separate column, but I would 
-  # like a long format where each row is a simulation
-  famsizes_freq_long <- lapply(1:4, function(day_index) {
-    rownames(famsizes_freq[[day_index]]) <- seq(nrow(famsizes_freq[[day_index]]))
-    colnames(famsizes_freq[[day_index]]) <- seq(0, ncol(famsizes_freq[[day_index]]) - 1)
-    as.data.frame(t(famsizes_freq[[day_index]]))
   })
   
+  # Transform the frequency tables to long format where each row is a simulation
+  famsizes_freq_long <- lapply(1:4, function(day_index) {
+    day_data <- famsizes_freq[[day_index]]
+    rownames(day_data) <- seq(nrow(day_data))
+    colnames(day_data) <- seq(0, ncol(day_data) - 1)
+    as.data.frame(t(day_data))
+  })
+  
+  # Name the list elements for each day
   names(famsizes_freq_long) <- c("d5", "d6", "d7", "d8")
   
   return(famsizes_freq_long)
 }
+
 
 # Combine all above functions
 generate_response_multi <- function(sim) {

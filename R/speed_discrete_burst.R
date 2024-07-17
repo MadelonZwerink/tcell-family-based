@@ -383,7 +383,7 @@ plot_response <- function(response){
 
 #-------------------------------------------------------------------------------
 
-fill_missing_families <- function(Q_cells){
+fill_missing_families <- function(Q_cells, nr_of_families = 500){
   missing_fams <- setdiff(seq(nr_of_families), Q_cells$fam_nr)
   remaining_values <- data.frame(fam_nr = as.numeric(missing_fams), 
                                  Q_cells = rep(0, length(missing_fams)))
