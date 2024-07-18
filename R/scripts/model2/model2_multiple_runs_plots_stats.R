@@ -27,7 +27,7 @@
 #-------------------------------------------------------------------------------
 # Provide information specific for run
 folder <- "./results/model2/multiple_runs/"
-run_name <- "m2_fixed_bp_quick_"
+run_name <- "m2_sqrt_quick_"
 
 source("./R/functions_multiple_sims.R") 
 
@@ -258,11 +258,11 @@ families <- 500
 
 set.seed(seed)
 
-bp_rule <- 1.75
+bp_rule <- 'sqrt(q*12.6)'
 dp_rule <- 0.5 #default
 rq_rule <- 0.5 #default
 t_start_dist <- 'rlnorm(nr_of_families, meanlog = 1.4, sdlog = 0.3)'
-t_run_rule <- '(q*12.6/1.75) + (nr_burst_divs[i]*t_burst[i])'
+t_run_rule <- 'sqrt(q*12.6) + (nr_burst_divs[i]*t_burst[i])'
 nr_burst_divs <- 'sample(c(2,3,4), nr_of_families, replace = TRUE)'
 quality_dist <- "rbeta(nr_of_families, shape1 = 2.29, shape2 = 3.80)"
 quality_noise <- FALSE

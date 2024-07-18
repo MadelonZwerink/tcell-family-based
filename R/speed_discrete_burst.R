@@ -260,8 +260,12 @@ get_famsize <- function(parameters, timepoint) {
   } else if (timepoint <= time_stop_prolif) { 
     famsize <- exp(parameters$bp * (timepoint - time_start_prolif))
   } else { 
-    max_cells <- exp(parameters$bp * (time_stop_prolif - time_start_prolif))
-    famsize <- max_cells * exp(-parameters$dp * (timepoint - time_stop_prolif))
+    if (parameters$cell_type == "P"){
+      max_cells <- exp(parameters$bp * (time_stop_prolif - time_start_prolif))
+      famsize <- max_cells * exp(-parameters$dp * (timepoint - time_stop_prolif))
+    } else if (parameters$cell_type == "Q"){
+      famsize <- 1
+    }
   }
   
   return(famsize)
@@ -646,7 +650,7 @@ get_famsize_stats <- function(df_famsizes){
 #-------------------------------------------------------------------------------
 
 generate_freq_famsize_table <- function(logfamsizes){
-  freq_famsizes <- data.frame(table(round(logfamsizes)))
+  freq_famsizes <- data.frame(table(round(as.numeric(logfamsizes))))
   colnames(freq_famsizes) <- c("logfamsize", "freq")
   freq_famsizes$logfamsize <- as.numeric(as.character(freq_famsizes$logfamsize))
   freq_famsizes$freq <- freq_famsizes$freq/sum(freq_famsizes$freq)
@@ -668,7 +672,7 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = FAL
                                       multi_plot = FALSE){
   if (multi_plot == TRUE) {
     freq_famsizes$freq <- freq_famsizes$means
-    freq_famsizes$logfamsize <- as.numeric(c(0, seq(nrow(freq_famsizes) - 1)))
+    freq_famsizes$logfamsize <- as.numeric(freq_famsizes$variable)
   } else {
     freq_famsizes$lower_bound <- NA
     freq_famsizes$upper_bound <- NA
@@ -702,7 +706,7 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = FAL
   }
   
   if (max(freq_famsizes$logfamsize) < x_axis_max){
-    nr_rows <- x_axis_max - max(freq_famsizes$logfamsize)
+    nr_rows <- x_axis_max - (max(freq_famsizes$logfamsize) + 1)
     bins <- seq(x_axis_max)
     addition <- data.frame(logfamsize = tail(bins, nr_rows), 
                            freq = rep(0, nr_rows),
@@ -712,11 +716,14 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = FAL
     freq_famsizes <- rbind(freq_famsizes, addition)
   }
   
-  plot <- ggplot(data = freq_famsizes, aes(x = logfamsize)) + 
-    geom_bar(aes(y = freq), stat = "identity", fill = "#9f2a63", col = "black") +
-    geom_errorbar(aes(ymin = freq - sd, ymax = freq + sd), width = 0.2) +
+  plot <- ggplot(data = freq_famsizes) + 
+    geom_bar(aes(x = logfamsize, y = freq), 
+             stat = "identity", 
+             fill = "#9f2a63", col = "black", 
+             position = position_dodge()) +
+    geom_errorbar(aes(x = logfamsize, ymin = freq - sd, ymax = freq + sd), width = 0.2) +
     geom_point(data = expected_famsizes, aes(x = Number_2log, y = Frequency), 
-               color = "#9c9797", size = 1.5, shape = 19) + 
+               color = "#9c9797", size = 1.5, shape = 19, inherit.aes = FALSE) + 
     labs(title = paste("Day", timepoint),
          x = "Family size (2log)",
          y = "Frequency") +
@@ -724,7 +731,9 @@ plot_famsize_distribution <- function(freq_famsizes, timepoint, show_title = FAL
     th +
     theme(plot.margin = margin(t = 0.7, r = 0, b = 0.5, l = 0, unit = "cm"),
           axis.text.x = element_text(face = NULL, size = 7.5)) +
-    scale_x_continuous(breaks = 0:x_axis_max, guide = guide_axis(angle = 60)) +
+    scale_x_continuous(breaks = 0:x_axis_max, 
+                       guide = guide_axis(angle = 60),
+                       limits = c(NA, x_axis_max+0.4)) +
     scale_y_continuous(labels = label_number(accuracy = 0.01),
                        expand = c(0, 0),
                        limits = c(0, y_axis_max)) 
@@ -807,7 +816,7 @@ plot_grid_famsize_dist <- function(famsizes_table = NULL,
   if (multi_plot == TRUE) {
     for (i in seq(4)) {
       frequencies_table[[i]]$freq <- frequencies_table[[i]]$means
-      frequencies_table[[i]]$logfamsize <- seq(0, nrow(frequencies_table[[i]]) - 1)
+      frequencies_table[[i]]$logfamsize <- as.numeric(frequencies_table[[i]]$variable)
     }
   }
   

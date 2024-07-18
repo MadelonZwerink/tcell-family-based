@@ -128,11 +128,11 @@ generate_freq_famsize_table_multidays_multi <- function(df_famsizes) {
       if (!setequal(freq_table$logfamsize, expected_bins)) {
         warning(paste0("Warning: frequencies are off, simulation nr: ", sim_index,
                        " day: ", day_index + 4))
+        freq_vect <- freq_table$freq 
       }
-      
       # Ensure frequency vector length is 20, pad with zeros if necessary
-      if (length(freq_table$freq) <= 20) {
-        freq_vect <- c(freq_table$freq, rep(0, 20 - length(freq_table$freq)))
+      if (length(freq_table$freq) <= 25) {
+        freq_vect <- c(freq_table$freq, rep(0, 25 - length(freq_table$freq)))
       } else {
         warning(paste0("Warning: unusually large family detected in simulation ", sim_index))
         freq_vect <- freq_table$freq 
@@ -145,8 +145,7 @@ generate_freq_famsize_table_multidays_multi <- function(df_famsizes) {
   # Transform the frequency tables to long format where each row is a simulation
   famsizes_freq_long <- lapply(1:4, function(day_index) {
     day_data <- famsizes_freq[[day_index]]
-    rownames(day_data) <- seq(nrow(day_data))
-    colnames(day_data) <- seq(0, ncol(day_data) - 1)
+    rownames(day_data) <- seq(0, nrow(day_data) - 1)
     as.data.frame(t(day_data))
   })
   
