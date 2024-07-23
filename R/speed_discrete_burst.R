@@ -553,7 +553,9 @@ plot_prim_sec_max_fam <- function(max_cells,
     th + 
     theme(legend.box.background = element_rect(color="lightgrey")) +
     guides(size = "none", shape = guide_legend(title.position = "top"))  +
-    scale_shape_manual(values = c(20, 17, 15))
+    scale_shape_manual(values = c(20, 17, 15)) +
+    scale_x_continuous(limits = c(0, 6)) +
+    scale_y_continuous(limits = c(0, 6))
   
   if (show_title == FALSE) {
     plot <- plot + labs(title = NULL, subtitle = NULL)
@@ -605,7 +607,9 @@ plot_sec_ter_max_fam <- function(max_cells,
     th +  
     guides(size = "none", color = "none", 
            shape = "none") +
-    scale_shape_manual(values = c(20, 17, 15))
+    scale_shape_manual(values = c(20, 17, 15)) +
+    scale_x_continuous(limits = c(0, 6)) +
+    scale_y_continuous(limits = c(0, 6))
 
   
   if (show_title == FALSE) {

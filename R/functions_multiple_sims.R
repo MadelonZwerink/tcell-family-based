@@ -167,8 +167,8 @@ generate_response_multi <- function(sim) {
 
 # Otherwise the function returns the statistics for the whole response, we want
 # statistics for each response
-get_response_stats_part <- function(total_resp, max_time){
-  get_total_response_stats(total_resp[total_resp$time < max_time, ])
+get_response_stats_part <- function(total_resp, max_time, min_time){
+  get_total_response_stats(total_resp[total_resp$time < max_time & total_resp$time > min_time, ])
 }
 
 convert_cols_to_numeric <- function(df){
@@ -180,12 +180,13 @@ convert_cols_to_numeric <- function(df){
   return(df)
 }
 
-convert_response_stats_part <- function(total_resp, max_time){
-  part_response_stats <- as.data.frame(t(sapply(total_resp, get_response_stats_part, c(max_time = max_time))))
+convert_response_stats_part <- function(total_resp, max_time, min_time){
+  part_response_stats <- as.data.frame(t(sapply(1:length(total_resp), function(i) {
+    get_response_stats_part(total_resp[[i]], max_time, min_time)
+  })))
   part_response_stats <- convert_cols_to_numeric(part_response_stats)
   return(part_response_stats)
 }
-
 #-------------------------------------------------------------------------------
 # These functions are used in multiple_runs_plots_stats
 #-------------------------------------------------------------------------------

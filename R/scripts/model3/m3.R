@@ -55,9 +55,9 @@ famsize_stats <- get_famsize_stats_multidays_multi(df_famsizes)
 max_fam_stats <- sapply(max_fam_table, get_max_fam_stats, table = F)
 max_fam_stats_long <- t(max_fam_stats)
 
-prim_response_stats <- convert_response_stats_part(total_resp, max_time = 50)
-sec_response_stats <- convert_response_stats_part(total_resp, max_time = 100)
-ter_response_stats <- convert_response_stats_part(total_resp, max_time = 150)
+prim_response_stats <- convert_response_stats_part(total_resp, max_time = 50, min_time = 0)
+sec_response_stats <- convert_response_stats_part(total_resp, max_time = 100, min_time = 50)
+ter_response_stats <- convert_response_stats_part(total_resp, max_time = 150, min_time = 100)
 
 #-------------------------------------------------------------------------------
 print("Saving data...")

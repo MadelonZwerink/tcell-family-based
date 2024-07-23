@@ -21,7 +21,7 @@ uniform_fam <- FALSE
 ASD <- FALSE
 burst_time <- 0.15 #default
 max_run_time <- NULL
-min_t_start <- 2.5
+min_t_start <- 0
 
 prim_parameters <- pick_parameters(bp_rule = bp_rule,
                                    dp_rule = dp_rule,
@@ -46,13 +46,13 @@ dd_m1 <- data.frame(fam_nr = prim_parameters$fam_nr,
                     dd = dd_m1, 
                     cell_type = prim_parameters$cell_type)
 dd_m1_P <- dd_m1[which(dd_m1$cell_type == "P"),]
-dd_m1_P$cells <- 2^dd_m1_P$dd
+dd_m1_P$cells <- exp(dd_m1_P$dd)
 
 dd_per_fam <- dd_m1_P %>%
   group_by(fam_nr) %>%
   summarise(fam_cells = mean(cells))
 
-dd_per_fam$fam_dd <- log2(dd_per_fam$fam_cells)
+dd_per_fam$fam_dd <- log(dd_per_fam$fam_cells)
 max_dd <- max(dd_per_fam$fam_dd) #12.564
 # Normalize the dd per family so that it is a value between 0 and 1
 dd_per_fam$dd_norm <- dd_per_fam$fam_dd / max_dd
@@ -65,7 +65,7 @@ ggplot(dd_per_fam, aes(x = fam_dd)) +
   theme_clean() + th +
   scale_x_continuous(breaks = c(0,4,8,12), limits = c(0, 13))
 
-ggsave("./results/model2/methods_DD_dist_m1.jpg", 
+ggsave("./results/model2/methods_DD_dist_e_m1.jpg", 
        width = 2000, height = 1500, units = "px")
 
 dist_stats <- descdist(dd_per_fam$dd_norm, discrete = F)
@@ -94,7 +94,7 @@ ggplot(dd_dist, aes(x = dd, y = density)) +
        y = "PDF") +
   scale_x_continuous(breaks = c(0,4,8,12), limits = c(0, 13))
 
-ggsave("./results/model2/methods_fitted_DD_dist.jpg", 
+ggsave("./results/model2/methods_fitted_DD_dist_e.jpg", 
        width = 2000, height = 1500, units = "px")
 
 #-------------------------------------------------------------------------------
