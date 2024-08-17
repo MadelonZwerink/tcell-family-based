@@ -7,6 +7,7 @@ if(Sys.info()[[4]]=="LAPTOP-3RJSLMKV") {
   .libPaths("./R")}
 
 source("./R/speed_discrete_burst.R")
+source("./R/model3_functions.R")
 
 
 #-------------------------------------------------------------------------------
@@ -27,15 +28,23 @@ generate_parameters_multi <- function() {
                                      response_nr = 1,
                                      quality_dist = quality_dist,
                                      quality_noise = quality_noise,
-                                     uniform_fam = uniform_fam,
                                      q_noise_dist = q_noise_dist,
                                      ASD = ASD,
                                      burst_time = burst_time,
                                      max_run_time = max_run_time,
                                      min_t_start = min_t_start)
   
+  div_index_prim <- generate_div_index_df(prim_parameters)
+  
+  recruited_cells_prim_parameters <- generate_recruited_cells(div_index_prim, 
+                                                              recruitment_mean,
+                                                              recruitment_sd)
+  recruited_cells_prim <- generate_processed_recruited_cells(recruited_cells_prim_parameters)
+  
+  #-------------------------------------------------------------------------------
+  
   sec_parameters <- pick_parameters(response_nr = 2,
-                                    prev_parameters = prim_parameters,
+                                    prev_parameters = recruited_cells_prim,
                                     bp_rule = bp_rule,
                                     dp_rule = dp_rule,
                                     rq_rule = rq_rule,
@@ -44,15 +53,24 @@ generate_parameters_multi <- function() {
                                     nr_burst_divs = nr_burst_divs,
                                     quality_dist = quality_dist,
                                     quality_noise = quality_noise,
-                                    uniform_fam = uniform_fam,
                                     q_noise_dist = q_noise_dist,
                                     ASD = ASD,
                                     burst_time = burst_time,
                                     max_run_time = max_run_time,
                                     min_t_start = min_t_start)
   
+  div_index_sec <- generate_div_index_df(sec_parameters)
+  
+  recruited_cells_sec_parameters <- generate_recruited_cells(div_index_sec, 
+                                                             recruitment_mean,
+                                                             recruitment_sd)
+  recruited_cells_sec <- generate_processed_recruited_cells(recruited_cells_sec_parameters)
+  
+  
+  #-------------------------------------------------------------------------------
+  
   ter_parameters <- pick_parameters(response_nr = 3,
-                                    prev_parameters = sec_parameters,
+                                    prev_parameters = recruited_cells_sec,
                                     bp_rule = bp_rule,
                                     dp_rule = dp_rule,
                                     rq_rule = rq_rule,
@@ -61,16 +79,30 @@ generate_parameters_multi <- function() {
                                     nr_burst_divs = nr_burst_divs,
                                     quality_dist = quality_dist,
                                     quality_noise = quality_noise,
-                                    uniform_fam = uniform_fam,
                                     q_noise_dist = q_noise_dist,
                                     ASD = ASD,
                                     burst_time = burst_time,
                                     max_run_time = max_run_time,
                                     min_t_start = min_t_start)
+  
+  div_index_ter <- generate_div_index_df(ter_parameters)
+  
+  recruited_cells_ter_parameters <- generate_recruited_cells(div_index_ter, 
+                                                             recruitment_mean,
+                                                             recruitment_sd)
+  recruited_cells_ter <- generate_processed_recruited_cells(recruited_cells_ter_parameters)
+  
   
   return(list(prim_parameters = prim_parameters,
               sec_parameters = sec_parameters,
-              ter_parameters = ter_parameters))
+              ter_parameters = ter_parameters,
+              recruited_cells_prim_parameters = recruited_cells_prim_parameters,
+              recruited_cells_sec_parameters = recruited_cells_sec_parameters,
+              recruited_cells_ter_parameters = recruited_cells_ter_parameters,
+              recruited_cells_prim = recruited_cells_prim,
+              recruited_cells_sec = recruited_cells_sec,
+              recruited_cells_ter = recruited_cells_ter
+              ))
 }
 
 # Distribution family sizes primary response 
@@ -81,10 +113,16 @@ generate_df_famsizes_multi <- function(prim_parameters) {
 
 # Total response table
 generate_total_response_table_multi <- function(all_parameters_list) {
-  prim_resp <- generate_total_response_table(all_parameters_list$prim_parameters, 0, 50, 0.1)
-  sec_resp <- generate_total_response_table(all_parameters_list$sec_parameters, 0, 50, 0.1)
+  prim_resp <- generate_total_response_table(all_parameters_list$prim_parameters, 0, 50, 0.1,
+                                             model = "noQ", 
+                                             recruited_cells = all_parameters_list$recruited_cells_prim_parameters)
+  sec_resp <- generate_total_response_table(all_parameters_list$sec_parameters, 0, 50, 0.1,
+                                            model = "noQ", 
+                                            recruited_cells = all_parameters_list$recruited_cells_sec_parameters)
   sec_resp$time <- sec_resp$time + 50
-  ter_resp <- generate_total_response_table(all_parameters_list$ter_parameters, 0, 50, 0.1)
+  ter_resp <- generate_total_response_table(all_parameters_list$ter_parameters, 0, 50, 0.1,
+                                            model = "noQ", 
+                                            recruited_cells = all_parameters_list$recruited_cells_ter_parameters)
   ter_resp$time <- ter_resp$time + 100
   
   total_resp <- rbind(prim_resp, sec_resp, ter_resp)
@@ -98,8 +136,21 @@ generate_max_fam_table_multi <- function(all_parameters_list) {
                                           all_parameters_list$sec_parameters, 
                                           all_parameters_list$ter_parameters, 
                                           type = "time", 
-                                          timepoint = 7)
+                                          timepoint = 7,
+                                          model = "noQ",
+                                          recruited_cells_prim = all_parameters_list$recruited_cells_prim,
+                                          recruited_cells_sec = all_parameters_list$recruited_cells_sec,
+                                          recruited_cells_ter = all_parameters_list$recruited_cells_ter)
   return(max_fam_table)
+}
+
+# Combine all above functions
+generate_response_multi <- function(sim) {
+  print(sim)
+  all_parameters_list[[sim]] <<- generate_parameters_multi()
+  df_famsizes[[sim]] <<- generate_df_famsizes_multi(all_parameters_list[[sim]]$prim_parameters)
+  total_resp[[sim]] <<- generate_total_response_table_multi(all_parameters_list[[sim]])
+  max_fam_table[[sim]] <<- generate_max_fam_table_multi(all_parameters_list[[sim]])
 }
 
 # Get famsize dist stats for multiple runs
@@ -137,11 +188,11 @@ generate_freq_famsize_table_multidays_multi <- function(df_famsizes) {
       if (!setequal(freq_table$logfamsize, expected_bins)) {
         warning(paste0("Warning: frequencies are off, simulation nr: ", sim_index,
                        " day: ", day_index + 4))
-        freq_vect <- freq_table$freq 
       }
+      
       # Ensure frequency vector length is 20, pad with zeros if necessary
-      if (length(freq_table$freq) <= 25) {
-        freq_vect <- c(freq_table$freq, rep(0, 25 - length(freq_table$freq)))
+      if (length(freq_table$freq) <= 20) {
+        freq_vect <- c(freq_table$freq, rep(0, 20 - length(freq_table$freq)))
       } else {
         warning(paste0("Warning: unusually large family detected in simulation ", sim_index))
         freq_vect <- freq_table$freq 
@@ -154,7 +205,8 @@ generate_freq_famsize_table_multidays_multi <- function(df_famsizes) {
   # Transform the frequency tables to long format where each row is a simulation
   famsizes_freq_long <- lapply(1:4, function(day_index) {
     day_data <- famsizes_freq[[day_index]]
-    rownames(day_data) <- seq(0, nrow(day_data) - 1)
+    rownames(day_data) <- seq(nrow(day_data))
+    colnames(day_data) <- seq(0, ncol(day_data) - 1)
     as.data.frame(t(day_data))
   })
   
@@ -162,16 +214,6 @@ generate_freq_famsize_table_multidays_multi <- function(df_famsizes) {
   names(famsizes_freq_long) <- c("d5", "d6", "d7", "d8")
   
   return(famsizes_freq_long)
-}
-
-
-# Combine all above functions
-generate_response_multi <- function(sim) {
-  print(sim)
-  all_parameters_list[[sim]] <<- generate_parameters_multi()
-  df_famsizes[[sim]] <<- generate_df_famsizes_multi(all_parameters_list[[sim]]$prim_parameters)
-  total_resp[[sim]] <<- generate_total_response_table_multi(all_parameters_list[[sim]])
-  max_fam_table[[sim]] <<- generate_max_fam_table_multi(all_parameters_list[[sim]])
 }
 
 # Otherwise the function returns the statistics for the whole response, we want
@@ -192,62 +234,7 @@ convert_cols_to_numeric <- function(df){
 convert_response_stats_part <- function(total_resp, max_time, min_time){
   part_response_stats <- as.data.frame(t(sapply(1:length(total_resp), function(i) {
     get_response_stats_part(total_resp[[i]], max_time, min_time)
-  })))
+    })))
   part_response_stats <- convert_cols_to_numeric(part_response_stats)
   return(part_response_stats)
-}
-#-------------------------------------------------------------------------------
-# These functions are used in multiple_runs_plots_stats
-#-------------------------------------------------------------------------------
-
-# Function to get mean and sd for each day
-generate_mean_freq_table <- function(famsizes_freq_table){
-  sd_famsizes_freq <- famsizes_freq_table %>%
-    summarize(across(everything(), sd, na.rm = TRUE)) %>%
-    t()
-  
-  famsizes_freq_table_mean <- data.frame(logfamsize = as.numeric(colnames(famsizes_freq_table)),
-                                         freq_mean = colMeans(famsizes_freq_table),
-                                         freq_sd = sd_famsizes_freq,
-                                         freq_confint = 1.96*sd_famsizes_freq)
-  
-  return(famsizes_freq_table_mean)
-}
-
-get_processed_famsize_stats <- function(famsize_stats){
-  mean <- mean(famsize_stats$mean)  
-  sd_mean <- sd(famsize_stats$mean)
-  median <- mean(famsize_stats$median)  
-  sd_median <- sd(famsize_stats$median)
-
-  return(c(mean, sd_mean, median, sd_median))
-}
-
-#This function returns mean, sd and lower and upper bound of 95% CI for 
-#dataframes in which each column is a variable and each row an observation
-get_processed_stats <- function(max_fam_stats_long, scientific = F){
-  means <- colMeans(max_fam_stats_long)
-  sd <- apply(max_fam_stats_long, 2, sd)
-  margin_of_error <- 1.96 * (sd / sqrt(nrow(max_fam_stats_long)))
-  lower_bound <- means - margin_of_error
-  upper_bound <- means + margin_of_error
-  
-  if(scientific == F){
-    for(output_stats in c("means", "sd", "lower_bound", "upper_bound")){
-      df <- get(output_stats)  # Retrieve the data frame by its name
-      df <- as.numeric(format(round(df, digits = 4), scientific = FALSE))  # Round and format
-      assign(output_stats, df)  # Assign the modified data frame back to the original name
-    }
-  }
-  return(data.frame("variable" = colnames(max_fam_stats_long),
-                    "means" = c(means), 
-                    "sd" = c(sd), 
-                    "lower_bound" = c(lower_bound), 
-                    "upper_bound" = c(upper_bound)))
-}
-
-get_Q_famsize_stats_multi <- function(max_fam_table){
-  Q_famsize_stats <- get_Q_famsize_stats(max_fam_table)
-  Q_famsize_stats_row <- c(Q_famsize_stats$r, Q_famsize_stats$p_value)
-  return(Q_famsize_stats_row)
 }

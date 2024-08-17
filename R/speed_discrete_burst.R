@@ -96,7 +96,7 @@ pick_parameters <- function(
     uniform_fam = FALSE,
     ASD = FALSE,
     burst_time = 0.15,
-    max_run_time = 8,
+    max_run_time = NULL,
     min_t_start = NULL) {
   
   parameters <- data.frame(cell_type = factor(),
@@ -153,6 +153,11 @@ pick_parameters <- function(
       fam_nr_2 <- prev_q$fam_nr_2[i]
       fam_nr_3 <- i
     }
+    if (response_nr > 3){
+      fam_nr <- prev_q$fam_nr[i]
+      fam_nr_2 <- i
+      fam_nr_3 <- i
+    }
     if(ASD == F) {
       cell_type <- rbinom(cells[i], 1, eval(parse(text = rq_rule)))
       cell_type <- replace(cell_type, which(cell_type == 1), "P")
@@ -174,6 +179,9 @@ pick_parameters <- function(
     }
     if (uniform_fam == T){
       q <- quality[i]
+      if (q < 0){
+        q <- 0
+      }
       #This makes all proliferating branches in families uniform
       t_run_expr <- substitute(eval(parse(text = t_run_rule)))
       t_run_val <- eval(t_run_expr)
@@ -187,6 +195,12 @@ pick_parameters <- function(
       # If this is not included, the expression is only evaluated once,
       # leading to the same t_run for all (sub)families
       q <- quality_fam[cell]
+      
+      if (is.na(q)){
+        
+      } else if (q < 0){
+        q <- 0
+      }
       
       if (uniform_fam == F){
         t_run_expr <- substitute(eval(parse(text = t_run_rule)))
@@ -455,9 +469,9 @@ generate_max_fam_table <- function(prim_parameters,
     Q_cells_ter <- get_recruited_cells_per_fam(recruited_cells_ter)
   }
   
-  Q_cells <- fill_missing_families(Q_cells)
-  Q_cells_sec <- fill_missing_families(Q_cells_sec)
-  Q_cells_ter <- fill_missing_families(Q_cells_ter)
+  Q_cells <- fill_missing_families(Q_cells, nr_of_families = nr_of_families)
+  Q_cells_sec <- fill_missing_families(Q_cells_sec, nr_of_families = nr_of_families)
+  Q_cells_ter <- fill_missing_families(Q_cells_ter, nr_of_families = nr_of_families)
   
   max_cells <- data.frame(
     fam_nr = seq(1, nr_of_families),
@@ -508,7 +522,8 @@ get_max_fam_stats <- function(max_cells, table = T){
 
 plot_prim_sec_max_fam <- function(max_cells, 
                                   show_title = FALSE,
-                                  label_burst_divs = c("col", "shape", "both")){ 
+                                  label_burst_divs = c("col", "shape", "both"),
+                                  scale_Q_max = 15){ 
   
   # Create the geom layer based on the condition
   geom_layer <- 
@@ -523,10 +538,10 @@ plot_prim_sec_max_fam <- function(max_cells,
         geom_point(aes(col = Q_cells, shape = as.factor(nr_burst_divs)), 
                    size = 1, alpha = 0.75),
         scale_color_viridis_c(option = "inferno", direction = -1,
-                              limits = c(0, 15),
-                              labels = c(0, 5, 10, 15),
-                              breaks = c(0, 5, 10, 15),
-                              alpha = 0.75), 
+                              limits = c(0, scale_Q_max),
+                              labels = seq(0, scale_Q_max, 5),
+                              breaks = seq(0, scale_Q_max, 5),
+                             alpha = 0.75),
         guides(colour = guide_colourbar(show.limits = TRUE, 
                                  title.position = "top",
                                  barwidth = 10,
@@ -569,7 +584,8 @@ plot_prim_sec_max_fam <- function(max_cells,
 
 plot_sec_ter_max_fam <- function(max_cells, 
                                  show_title = FALSE,
-                                 label_burst_divs = c("col", "shape", "both")){ 
+                                 label_burst_divs = c("col", "shape", "both"),
+                                 scale_Q_max = 15){ 
   
   # Create the geom layer based on the condition
   geom_layer <- 
@@ -582,9 +598,9 @@ plot_sec_ter_max_fam <- function(max_cells,
       list(
         geom_point(aes(col = Q_cells, shape = as.factor(nr_burst_divs)), size = 1, alpha = 0.75),
         scale_color_viridis_c(option = "inferno", direction = -1,
-                              limits = c(0, 15),
-                              labels = c(0, 5, 10, 15),
-                              breaks = c(0, 5, 10, 15),
+                               limits = c(0, scale_Q_max),
+                               labels = seq(0, scale_Q_max, 5),
+                               breaks = seq(0, scale_Q_max, 5),
                               alpha = 0.75))
     } else if(label_burst_divs == "both") {
       list(
@@ -1030,16 +1046,16 @@ generate_Q_mean_famsize_table <- function(max_fam_table){
 
 #-------------------------------------------------------------------------------
 
-plot_Q_famsize_boxplots <- function(max_fam_table){
+plot_Q_famsize_boxplots <- function(max_fam_table, scale_Q_max = 15){
   mean_max_fam_table <- generate_Q_mean_famsize_table(max_fam_table)
   myxlab <- paste(as.factor(mean_max_fam_table$Q_cells), "\nN=", mean_max_fam_table$n, sep="")
   
   plot_Q_prim <- ggplot(max_fam_table, aes(x = as.factor(Q_cells), fill = Q_cells)) + 
     geom_boxplot(aes(y = log10(cells_prim))) +
     scale_fill_viridis_c(option = "inferno", direction = -1,
-                         limits = c(0, 15),
-                         labels = c(0, 5, 10, 15),
-                         breaks = c(0, 5, 10, 15)) +
+                         limits = c(0, scale_Q_max),
+                         labels = seq(0, scale_Q_max, 5),
+                         breaks = seq(0, scale_Q_max, 5)) +
     guides(fill = guide_colourbar(show.limits = TRUE, 
                                   title.position = "top",
                                   barwidth = 10,
@@ -1058,9 +1074,9 @@ plot_Q_famsize_boxplots <- function(max_fam_table){
   plot_Q_sec <- ggplot(max_fam_table, aes(x = as.factor(Q_cells), fill = Q_cells)) + 
     geom_boxplot(aes(y = log10(cells_sec))) +
     scale_fill_viridis_c(option = "inferno", direction = -1,
-                         limits = c(0, 15),
-                         labels = c(0, 5, 10, 15),
-                         breaks = c(0, 5, 10, 15)) +
+                         limits = c(0, scale_Q_max),
+                         labels = seq(0, scale_Q_max, 5),
+                         breaks = seq(0, scale_Q_max, 5)) +
     guides(fill = guide_colourbar(show.limits = TRUE, 
                                   title.position = "top",
                                   barwidth = 10,
@@ -1077,11 +1093,11 @@ plot_Q_famsize_boxplots <- function(max_fam_table){
     guides(size = "none", shape = guide_legend(title.position = "top")) 
   
   plot_Q_ter <- ggplot(max_fam_table, aes(x = as.factor(Q_cells), fill = Q_cells)) + 
-    geom_boxplot(aes(y = log10(cells_ter))) +
+    geom_boxplot(aes(y = log10(cells_ter)))  +
     scale_fill_viridis_c(option = "inferno", direction = -1,
-                         limits = c(0, 15),
-                         labels = c(0, 5, 10, 15),
-                         breaks = c(0, 5, 10, 15)) +
+                         limits = c(0, scale_Q_max),
+                         labels = seq(0, scale_Q_max, 5),
+                         breaks = seq(0, scale_Q_max, 5)) +
     guides(fill = guide_colourbar(show.limits = TRUE, 
                                   title.position = "top",
                                   barwidth = 10,

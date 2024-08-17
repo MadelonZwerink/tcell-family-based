@@ -48,3 +48,8 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Results folder
+results/
+data/processed/
+data/temp/
