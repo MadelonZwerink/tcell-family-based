@@ -1,2 +1,0 @@
-Model 2 is the model with both P and Q cells, where there is increased difference between families due to quality.
-All runs in model 2 continue with the parameters from model1, set2 unless specified otherwise.
