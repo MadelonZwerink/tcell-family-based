@@ -1,0 +1,29 @@
+[1] "Table 2: famsize distributions for d5-8"
+$d5
+   variable    means       sd lower_bound upper_bound
+1      mean 157.0700  44.8574    148.2779    165.8621
+2    median  24.8400   2.2416     24.4007     25.2793
+3        sd 723.9180 492.5795    627.3725    820.4636
+4 disparity   0.6798   0.0648      0.6672      0.6925
+
+$d6
+   variable     means        sd lower_bound upper_bound
+1      mean  892.5700  291.8883    835.3599    949.7801
+2    median   60.8300    6.9762     59.4627     62.1973
+3        sd 5040.4226 3287.7672   4396.0202   5684.8250
+4 disparity    0.7379    0.0689      0.7244      0.7514
+
+$d7
+   variable      means        sd lower_bound upper_bound
+1      mean  2274.4600  603.8236   2156.1106   2392.8094
+2    median   114.0200   14.1314    111.2502    116.7898
+3        sd 11759.7265 6151.6928  10553.9948  12965.4583
+4 disparity     0.7367    0.0560      0.7257      0.7477
+
+$d8
+   variable      means        sd lower_bound upper_bound
+1      mean  3190.1100  820.0769   3029.3749   3350.8451
+2    median   132.9400   18.2457    129.3638    136.5162
+3        sd 16235.4743 7678.5022  14730.4879  17740.4607
+4 disparity     0.7352    0.0554      0.7243      0.7460
+
